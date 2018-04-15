@@ -83,6 +83,90 @@
         <header class="article-info clearfix">
   <h1 itemprop="name">
     
+      <a href="/2018/04/15/python字符编码/" title="python字符编码" itemprop="url">python字符编码</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
+		
+  <p class="article-time">
+    <time datetime="2018-04-15T04:01:31.000Z" itemprop="datePublished"> Published 2018-04-15</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+        
+        <h2 id="python字符编码"><a href="#python字符编码" class="headerlink" title="python字符编码"></a>python字符编码</h2><p>如果不懂字符编码，将会是程序员一生之痛。</p>
+<h4 id="一、python3的字符编码"><a href="#一、python3的字符编码" class="headerlink" title="一、python3的字符编码"></a>一、python3的字符编码</h4><p>首先明确下面几点:</p>
+<ol>
+<li>python3内存中都是解码过的unicode(万国码)二进制</li>
+<li>硬盘中存的是经过编码的二进制(gbk,ascci等)</li>
+<li>我们看到的字符输出等都是经过应用程序从内存中编码得到的</li>
+<li>控制python以什么编码方式读取代码到内存:  #coding: utf-8(gbk)</li>
+<li>unicode的二进制在内存中怎么都不会乱码</li>
+</ol>
+<h4 id="二、编码与解码"><a href="#二、编码与解码" class="headerlink" title="二、编码与解码"></a>二、编码与解码</h4><p><img src="/img/decode_encode.jpg" style="display:block;margin:auto"></p>
+<p>由上图可见，乱码的情况只可能发生在:</p>
+<ol>
+<li><strong>读取字符到内存时的解码方式和存取文件时的编码方式不同</strong></li>
+<li><strong>读取字符到内存时的解码方式和输出时的编码方式不同</strong></li>
+</ol>
+<h4 id="三、python2的字符编码"><a href="#三、python2的字符编码" class="headerlink" title="三、python2的字符编码"></a>三、python2的字符编码</h4><p>python2由于历史遗留问题默认使用的是ascci编码方式，因为1989年python诞生，而unicode是在1994年才正式发布。</p>
+<p>python2与python字符编码的最大区别:</p>
+<ul>
+<li>默认使用ascci编码到内存</li>
+</ul>
+<p>这样就导致了python2内存中无法做到怎么都不会乱码，需要先解码，再编码。</p>
+<h4 id="四、总结"><a href="#四、总结" class="headerlink" title="四、总结"></a>四、总结</h4><ol>
+<li>以什么方式读的，就以什么方式存或者取，可以保证字符不会乱码。</li>
+<li>更加坚定的使用python3。</li>
+</ol>
+
+        
+        
+        <p class="article-more-link">
+          
+       </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/python基础/">python基础</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/python/">python</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+        <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
       <a href="/2018/04/10/Lua前言/" title="Lua前言" itemprop="url">Lua前言</a>
   </h1>
   <p class="article-author">By
@@ -155,6 +239,10 @@
 			<li><a href="/categories/Lua/" title="Lua">Lua<sup>1</sup></a></li>
 		  
 		
+		  
+			<li><a href="/categories/python基础/" title="python基础">python基础<sup>1</sup></a></li>
+		  
+		
 		</ul>
 </div>
 
@@ -170,6 +258,10 @@
 		
 			
 				<li><a href="/tags/nginx/" title="nginx">nginx<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/python/" title="python">python<sup>1</sup></a></li>
 			
 		
 		</ul>
