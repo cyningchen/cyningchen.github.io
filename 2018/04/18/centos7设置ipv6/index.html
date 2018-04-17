@@ -4,25 +4,27 @@
 <head>
   <meta charset="UTF-8">
   
-    <title>Lua前言 | CyningChen - 博客</title>
+    <title>centos7设置ipv6 | CyningChen - 博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
     
     <meta name="author" content="CyningChen">
     
 
     
-    <meta name="description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
-<meta name="keywords" content="Lua,nginx">
+    <meta name="description" content="前言​最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。 ​     环境准备1台阿里云主机、centos7系统、专有网络 ​    ​ 环境搭建1、系统内核支持ipv6由于阿里云主机默认是关闭ipv6的，所以需要将ipv6相关">
+<meta name="keywords" content="ipv6">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Lua前言">
-<meta property="og:url" content="http://yoursite.com/2018/04/10/Lua前言/index.html">
+<meta property="og:title" content="centos7设置ipv6">
+<meta property="og:url" content="http://yoursite.com/2018/04/18/centos7设置ipv6/index.html">
 <meta property="og:site_name" content="CyningChen - 博客">
-<meta property="og:description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
+<meta property="og:description" content="前言​最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。 ​     环境准备1台阿里云主机、centos7系统、专有网络 ​    ​ 环境搭建1、系统内核支持ipv6由于阿里云主机默认是关闭ipv6的，所以需要将ipv6相关">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-04-10T15:57:48.539Z">
+<meta property="og:image" content="c:/PythonProjects/hexo/source/_posts/img/ipv6_apply.png">
+<meta property="og:updated_time" content="2018-04-17T16:28:04.303Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Lua前言">
-<meta name="twitter:description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
+<meta name="twitter:title" content="centos7设置ipv6">
+<meta name="twitter:description" content="前言​最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。 ​     环境准备1台阿里云主机、centos7系统、专有网络 ​    ​ 环境搭建1、系统内核支持ipv6由于阿里云主机默认是关闭ipv6的，所以需要将ipv6相关">
+<meta name="twitter:image" content="c:/PythonProjects/hexo/source/_posts/img/ipv6_apply.png">
 
     
     <link rel="alternative" href="/atom.xml" title="CyningChen - 博客" type="application/atom+xml">
@@ -86,14 +88,14 @@
 		<header class="article-info clearfix">
   <h1 itemprop="name">
     
-      <a href="/2018/04/10/Lua前言/" title="Lua前言" itemprop="url">Lua前言</a>
+      <a href="/2018/04/18/centos7设置ipv6/" title="centos7设置ipv6" itemprop="url">centos7设置ipv6</a>
   </h1>
   <p class="article-author">By
        
 		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
 		
   <p class="article-time">
-    <time datetime="2018-04-10T15:52:21.000Z" itemprop="datePublished"> Published 2018-04-10</time>
+    <time datetime="2018-04-17T16:23:17.000Z" itemprop="datePublished"> Published 2018-04-18</time>
     
   </p>
 </header>
@@ -102,12 +104,37 @@
 		<div id="toc" class="toc-article">
 			<strong class="toc-title">文章目录</strong>
 		
-			
+			<ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#前言"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#环境准备"><span class="toc-number">2.</span> <span class="toc-text">环境准备</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#环境搭建"><span class="toc-number">3.</span> <span class="toc-text">环境搭建</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#1、系统内核支持ipv6"><span class="toc-number">3.0.1.</span> <span class="toc-text">1、系统内核支持ipv6</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#2、申请ipv6地址"><span class="toc-number">3.0.2.</span> <span class="toc-text">2、申请ipv6地址</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#3、web服务支持ipv6"><span class="toc-number">3.0.3.</span> <span class="toc-text">3、web服务支持ipv6</span></a></li></ol></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#总结"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol>
 		
 		</div>
 		
-		<p>###Lua前言</p>
-<p>nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。</p>
+		<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a><strong>前言</strong></h3><p>​最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。</p>
+<p>​    </p>
+<h3 id="环境准备"><a href="#环境准备" class="headerlink" title="环境准备"></a><strong>环境准备</strong></h3><p>1台阿里云主机、centos7系统、专有网络</p>
+<p>​    ​</p>
+<h3 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a><strong>环境搭建</strong></h3><h5 id="1、系统内核支持ipv6"><a href="#1、系统内核支持ipv6" class="headerlink" title="1、系统内核支持ipv6"></a><strong>1、系统内核支持ipv6</strong></h5><p>由于阿里云主机默认是关闭ipv6的，所以需要将ipv6相关的选项放开，编辑/etc/sysctl.conf文件</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">net.ipv6.conf.all.disable_ipv6 =0</span><br><span class="line">net.ipv6.conf.default.disable_ipv6 =0</span><br><span class="line">net.ipv6.conf.lo.disable_ipv6 = 0</span><br></pre></td></tr></table></figure>
+<p>将如上三项改成为0(原本为1)</p>
+<p>​    </p>
+<p>​    </p>
+<h5 id="2、申请ipv6地址"><a href="#2、申请ipv6地址" class="headerlink" title="2、申请ipv6地址"></a><strong>2、申请ipv6地址</strong></h5><p>推荐去这个网站<a href="">tunnelbroker.net</a>，有推荐设置什么的，很方便</p>
+<p>申请好之后如下：</p>
+<p><img src="C:/PythonProjects/hexo/source/_posts/img/ipv6_apply.png" style="display:block;margin:auto"></p>
+<p>设置ipv6永久生效，将其放在/etc/sysconfig/network-scripts/下</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ONBOOT=yes</span><br><span class="line">DEVICE=sit</span><br><span class="line">BOOTPROTO=none</span><br><span class="line">IPV6INIT=yes</span><br><span class="line">IPV6TUNNELIPV4=66.220.18.42		   #tunnel serverip	</span><br><span class="line">IPV6TUNNELIPV4LOCAL=172.19.155.53  #替换成自己的内网ip</span><br><span class="line">IPV6ADDR=2001:470:c:13bb::2/64	   #ipv6地址</span><br><span class="line">IPV6_DEFAULTGW=2001:470:c:13bb::1	#默认网关</span><br></pre></td></tr></table></figure>
+<p>在/etc/resolv.conf中加入dns域名解析</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nameserver 74.82.42.42</span><br><span class="line">nameserver 2001:470:20::2</span><br></pre></td></tr></table></figure>
+<p>​    </p>
+<p>​    </p>
+<h5 id="3、web服务支持ipv6"><a href="#3、web服务支持ipv6" class="headerlink" title="3、web服务支持ipv6"></a><strong>3、web服务支持ipv6</strong></h5><p>查看nginx是否支持ipv6</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[root@izuf60ecjd7aq306bwuc13z sbin]# ./nginx -V</span><br><span class="line">nginx version: nginx/1.2.4</span><br><span class="line">built by gcc 4.8.5 20150623 (Red Hat 4.8.5-11) (GCC) </span><br><span class="line">TLS SNI support enabled</span><br><span class="line">configure arguments: --prefix=/usr/local/nginx --with-ipv6 --with-http_gzip_static_module --with-http_ssl_module --with-http_stub_status_module --add-module=../nginx-sticky-module-1.1/ --add-module=../nginx_upstream_check_module/ --add-module=../chunkin-nginx-module-0.23/ --with-pcre=../pcre-8.21</span><br></pre></td></tr></table></figure>
+<p>如果不支持，需要重新编译nginx，加上–with-ipv6。</p>
+<p>修改nginx配置文件，监听ipv6的80端口</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">listen       [::]:80 ipv6only=on;</span><br></pre></td></tr></table></figure>
+<p>至此，ipv6网站基本完成。设置ipv6的域名解析就不多说了。</p>
+<p>最后，去 <a href="">http://ipv6-test.com/validate.php</a>上验证一下</p>
+<p><img src="" style="display:block;margin:auto"></p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a><strong>总结</strong></h3><p>学习一下，留给以后上架苹果store app用。</p>
   
 	</div>
 		<footer class="article-footer clearfix">
@@ -115,13 +142,13 @@
 
 <div class="article-categories">
   <span></span>
-  <a class="article-category-link" href="/categories/Lua/">Lua</a>
+  <a class="article-category-link" href="/categories/运维/">运维</a>
 </div>
 
 
   <div class="article-tags">
   
-  <span></span> <a href="/tags/Lua/">Lua</a><a href="/tags/nginx/">nginx</a>
+  <span></span> <a href="/tags/ipv6/">ipv6</a>
   </div>
 
 </div>
@@ -130,7 +157,7 @@
 
 	<div class="article-share" id="share">
 	
-	  <div data-url="http://yoursite.com/2018/04/10/Lua前言/" data-title="Lua前言 | CyningChen - 博客" data-tsina="" class="share clearfix">
+	  <div data-url="http://yoursite.com/2018/04/18/centos7设置ipv6/" data-title="centos7设置ipv6 | CyningChen - 博客" data-tsina="" class="share clearfix">
 	  </div>
 	
 	</div>
@@ -143,14 +170,14 @@
 	
 <nav class="article-nav clearfix">
  
- <div class="prev" >
- <a href="/2018/04/15/python字符编码/" title="python字符编码">
-  <strong>上一篇：</strong><br/>
-  <span>
-  python字符编码</span>
+
+<div class="next">
+<a href="/2018/04/15/python字符编码/"  title="python字符编码">
+ <strong>下一篇：</strong><br/> 
+ <span>python字符编码
+</span>
 </a>
 </div>
-
 
 </nav>
 
@@ -164,7 +191,7 @@
   <div id="toc" class="toc-aside">
   <strong class="toc-title">Contents</strong>
  
- 
+ <ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#前言"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#环境准备"><span class="toc-number">2.</span> <span class="toc-text">环境准备</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#环境搭建"><span class="toc-number">3.</span> <span class="toc-text">环境搭建</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#1、系统内核支持ipv6"><span class="toc-number">3.0.1.</span> <span class="toc-text">1、系统内核支持ipv6</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#2、申请ipv6地址"><span class="toc-number">3.0.2.</span> <span class="toc-text">2、申请ipv6地址</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#3、web服务支持ipv6"><span class="toc-number">3.0.3.</span> <span class="toc-text">3、web服务支持ipv6</span></a></li></ol></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#总结"><span class="toc-number">4.</span> <span class="toc-text">总结</span></a></li></ol>
  
   </div>
 
