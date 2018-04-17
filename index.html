@@ -96,7 +96,7 @@
 </header>
     <div class="article-content">
         
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a><strong>前言</strong></h3><p>​最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。</p>
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a><strong>前言</strong></h3><p>最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。</p>
 <p>​    </p>
 <h3 id="环境准备"><a href="#环境准备" class="headerlink" title="环境准备"></a><strong>环境准备</strong></h3><p>1台阿里云主机、centos7系统、专有网络</p>
 <p>​    ​</p>
@@ -107,7 +107,7 @@
 <p>​    </p>
 <h5 id="2、申请ipv6地址"><a href="#2、申请ipv6地址" class="headerlink" title="2、申请ipv6地址"></a><strong>2、申请ipv6地址</strong></h5><p>推荐去这个网站<a href="">tunnelbroker.net</a>，有推荐设置什么的，很方便</p>
 <p>申请好之后如下：</p>
-<p><img src="C:/PythonProjects/hexo/source/_posts/img/ipv6_apply.png" style="display:block;margin:auto"></p>
+<p><img src="/img/ipv6_apply.png" style="display:block;margin:auto"></p>
 <p>设置ipv6永久生效，将其放在/etc/sysconfig/network-scripts/下</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ONBOOT=yes</span><br><span class="line">DEVICE=sit</span><br><span class="line">BOOTPROTO=none</span><br><span class="line">IPV6INIT=yes</span><br><span class="line">IPV6TUNNELIPV4=66.220.18.42		   #tunnel serverip	</span><br><span class="line">IPV6TUNNELIPV4LOCAL=172.19.155.53  #替换成自己的内网ip</span><br><span class="line">IPV6ADDR=2001:470:c:13bb::2/64	   #ipv6地址</span><br><span class="line">IPV6_DEFAULTGW=2001:470:c:13bb::1	#默认网关</span><br></pre></td></tr></table></figure>
 <p>在/etc/resolv.conf中加入dns域名解析</p>
@@ -121,7 +121,7 @@
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">listen       [::]:80 ipv6only=on;</span><br></pre></td></tr></table></figure>
 <p>至此，ipv6网站基本完成。设置ipv6的域名解析就不多说了。</p>
 <p>最后，去 <a href="">http://ipv6-test.com/validate.php</a>上验证一下</p>
-<p><img src="" style="display:block;margin:auto"></p>
+<p><img src="/img/ipv6_validate.png" style="display:block;margin:auto"></p>
 <h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a><strong>总结</strong></h3><p>学习一下，留给以后上架苹果store app用。</p>
 
         
