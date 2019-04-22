@@ -4,25 +4,25 @@
 <head>
   <meta charset="UTF-8">
   
-    <title>Lua前言 | CyningChen - 博客</title>
+    <title>Python近期总结1 | CyningChen - 博客</title>
     <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
     
     <meta name="author" content="CyningChen">
     
 
     
-    <meta name="description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
-<meta name="keywords" content="Lua,nginx">
+    <meta name="description" content="Python近期总结1总结记录一下python装饰器和单例的实现 一、装饰器模式装饰器由闭包实现，闭包概念如下：  绑定外部作用域的变量的函数 即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁 每次运行外部函数都会重新创建闭包  实现一个记录函数运行时间的装饰器： 12345678def log_time(func):	def log(*args, **kwargs):		begin = ti">
+<meta name="keywords" content="python,设计模式,装饰器">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Lua前言">
-<meta property="og:url" content="http://yoursite.com/2018/04/10/Lua前言/index.html">
+<meta property="og:title" content="Python近期总结1">
+<meta property="og:url" content="http://yoursite.com/2019/04/22/Python近期总结1/index.html">
 <meta property="og:site_name" content="CyningChen - 博客">
-<meta property="og:description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
+<meta property="og:description" content="Python近期总结1总结记录一下python装饰器和单例的实现 一、装饰器模式装饰器由闭包实现，闭包概念如下：  绑定外部作用域的变量的函数 即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁 每次运行外部函数都会重新创建闭包  实现一个记录函数运行时间的装饰器： 12345678def log_time(func):	def log(*args, **kwargs):		begin = ti">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2018-04-10T15:57:48.539Z">
+<meta property="og:updated_time" content="2019-04-22T14:14:50.950Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Lua前言">
-<meta name="twitter:description" content="###Lua前言 nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。">
+<meta name="twitter:title" content="Python近期总结1">
+<meta name="twitter:description" content="Python近期总结1总结记录一下python装饰器和单例的实现 一、装饰器模式装饰器由闭包实现，闭包概念如下：  绑定外部作用域的变量的函数 即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁 每次运行外部函数都会重新创建闭包  实现一个记录函数运行时间的装饰器： 12345678def log_time(func):	def log(*args, **kwargs):		begin = ti">
 
     
     <link rel="alternative" href="/atom.xml" title="CyningChen - 博客" type="application/atom+xml">
@@ -86,14 +86,14 @@
 		<header class="article-info clearfix">
   <h1 itemprop="name">
     
-      <a href="/2018/04/10/Lua前言/" title="Lua前言" itemprop="url">Lua前言</a>
+      <a href="/2019/04/22/Python近期总结1/" title="Python近期总结1" itemprop="url">Python近期总结1</a>
   </h1>
   <p class="article-author">By
        
 		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
 		
   <p class="article-time">
-    <time datetime="2018-04-10T15:52:21.000Z" itemprop="datePublished"> Published 2018-04-10</time>
+    <time datetime="2019-04-22T13:58:00.000Z" itemprop="datePublished"> Published 2019-04-22</time>
     
   </p>
 </header>
@@ -102,12 +102,30 @@
 		<div id="toc" class="toc-article">
 			<strong class="toc-title">文章目录</strong>
 		
-			
+			<ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#Python近期总结1"><span class="toc-number">1.</span> <span class="toc-text">Python近期总结1</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#一、装饰器模式"><span class="toc-number">1.0.1.</span> <span class="toc-text">一、装饰器模式</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#二、单例模式"><span class="toc-number">1.0.2.</span> <span class="toc-text">二、单例模式</span></a></li></ol></li></ol></li></ol>
 		
 		</div>
 		
-		<p>###Lua前言</p>
-<p>nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。</p>
+		<h3 id="Python近期总结1"><a href="#Python近期总结1" class="headerlink" title="Python近期总结1"></a><strong>Python近期总结1</strong></h3><p>总结记录一下python装饰器和单例的实现</p>
+<h5 id="一、装饰器模式"><a href="#一、装饰器模式" class="headerlink" title="一、装饰器模式"></a><strong>一、装饰器模式</strong></h5><p>装饰器由闭包实现，闭包概念如下：</p>
+<ul>
+<li>绑定外部作用域的变量的函数</li>
+<li>即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁</li>
+<li>每次运行外部函数都会重新创建闭包</li>
+</ul>
+<p>实现一个记录函数运行时间的装饰器：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">log_time</span><span class="params">(func)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">log</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">		begin = time.time()</span><br><span class="line">		res = func(*args, **kwargs)</span><br><span class="line">		end = time.time() - begin</span><br><span class="line">		print(end)</span><br><span class="line">		<span class="keyword">return</span> res</span><br><span class="line">	<span class="keyword">return</span> log</span><br></pre></td></tr></table></figure>
+<p>类方法实现的带参数的装饰器</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">LogTime</span><span class="params">(object)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, use_int=False)</span>:</span></span><br><span class="line">		self.use_int = use_int</span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__call__</span><span class="params">(self, func)</span></span></span><br><span class="line"><span class="function">		<span class="title">def</span> <span class="title">log</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">            begin = time.time()</span><br><span class="line">            res = func(*args, **kwargs)</span><br><span class="line">            <span class="keyword">if</span> self.use_int:</span><br><span class="line">            	end = int(time.time() - begin)</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">            	end = time.time() - begin</span><br><span class="line">            print(end)</span><br><span class="line">            <span class="keyword">return</span> res</span><br><span class="line">		<span class="keyword">return</span> log</span><br><span class="line">    </span><br><span class="line"><span class="meta">@LogTime(True)</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">test</span><span class="params">()</span>:</span></span><br><span class="line">    time.sleep(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">test()</span><br></pre></td></tr></table></figure>
+<p>上述代码会打印1，而不是一个浮点数1.010类似的数据，<strong>call</strong>是python类中的特殊方法，当使用<strong>类()</strong>会自动执行类下的<strong>call</strong>方法，@只是python的一个语法糖，实际上是这样调用的</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">test = LogTime().__call__(test)</span><br><span class="line">test()</span><br></pre></td></tr></table></figure>
+<h5 id="二、单例模式"><a href="#二、单例模式" class="headerlink" title="二、单例模式"></a><strong>二、单例模式</strong></h5><p>使用new方法创建单例，比使用classmethod创建单例更简洁，并且不会出现不支持多线程创建单例，直接上代码</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Single</span><span class="params">(object)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__new__</span><span class="params">(cls)</span>:</span></span><br><span class="line">		<span class="keyword">if</span> <span class="keyword">not</span> hasattr(cls, <span class="string">"_instance"</span>):</span><br><span class="line">			cls._instance = super().__new__(cls)</span><br><span class="line">		<span class="keyword">return</span> cls._instance</span><br></pre></td></tr></table></figure>
+<p>一般我们认为<strong>init</strong>方法是创建实例并初始化的方法，实际上应该分为两步：</p>
+<ol>
+<li><strong>new</strong>方法负责创建实例</li>
+<li><strong>init</strong>方法负责初始化实例的一些属性</li>
+</ol>
   
 	</div>
 		<footer class="article-footer clearfix">
@@ -115,13 +133,13 @@
 
 <div class="article-categories">
   <span></span>
-  <a class="article-category-link" href="/categories/Lua/">Lua</a>
+  <a class="article-category-link" href="/categories/python进阶/">python进阶</a>
 </div>
 
 
   <div class="article-tags">
   
-  <span></span> <a href="/tags/Lua/">Lua</a><a href="/tags/nginx/">nginx</a>
+  <span></span> <a href="/tags/python/">python</a><a href="/tags/设计模式/">设计模式</a><a href="/tags/装饰器/">装饰器</a>
   </div>
 
 </div>
@@ -130,7 +148,7 @@
 
 	<div class="article-share" id="share">
 	
-	  <div data-url="http://yoursite.com/2018/04/10/Lua前言/" data-title="Lua前言 | CyningChen - 博客" data-tsina="" class="share clearfix">
+	  <div data-url="http://yoursite.com/2019/04/22/Python近期总结1/" data-title="Python近期总结1 | CyningChen - 博客" data-tsina="" class="share clearfix">
 	  </div>
 	
 	</div>
@@ -143,14 +161,14 @@
 	
 <nav class="article-nav clearfix">
  
- <div class="prev" >
- <a href="/2018/04/15/python字符编码/" title="python字符编码">
-  <strong>上一篇：</strong><br/>
-  <span>
-  python字符编码</span>
+
+<div class="next">
+<a href="/2018/11/16/golang变量/"  title="golang变量">
+ <strong>下一篇：</strong><br/> 
+ <span>golang变量
+</span>
 </a>
 </div>
-
 
 </nav>
 
@@ -164,7 +182,7 @@
   <div id="toc" class="toc-aside">
   <strong class="toc-title">Contents</strong>
  
- 
+ <ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#Python近期总结1"><span class="toc-number">1.</span> <span class="toc-text">Python近期总结1</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#一、装饰器模式"><span class="toc-number">1.0.1.</span> <span class="toc-text">一、装饰器模式</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#二、单例模式"><span class="toc-number">1.0.2.</span> <span class="toc-text">二、单例模式</span></a></li></ol></li></ol></li></ol>
  
   </div>
 
