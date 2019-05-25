@@ -11,17 +11,17 @@
     
 
     
-    <meta name="description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现方式一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时">
+    <meta name="description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时刻，">
 <meta property="og:type" content="article">
 <meta property="og:title" content="CyningChen - 博客">
 <meta property="og:url" content="http://yoursite.com/2019/05/26/分布式锁实现/index.html">
 <meta property="og:site_name" content="CyningChen - 博客">
-<meta property="og:description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现方式一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时">
+<meta property="og:description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时刻，">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2019-05-25T16:06:21.513Z">
+<meta property="og:updated_time" content="2019-05-25T16:08:15.856Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="CyningChen - 博客">
-<meta name="twitter:description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现方式一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时">
+<meta name="twitter:description" content="title: 分布式锁实现date: 2019-05-26 00:04:51categories: 分布式 tags:   redis 分布式锁 etcd  分布式锁实现一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。  基于redis分分布式锁 数据库乐观锁 基于etcd的分布式锁 基于zookeeper的分布式锁  二、分布式锁的四要素 互斥性：在任意时刻，">
 
     
     <link rel="alternative" href="/atom.xml" title="CyningChen - 博客" type="application/atom+xml">
@@ -101,7 +101,7 @@
 		<div id="toc" class="toc-article">
 			<strong class="toc-title">文章目录</strong>
 		
-			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式锁实现方式"><span class="toc-number">1.</span> <span class="toc-text">分布式锁实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、前言"><span class="toc-number">1.1.</span> <span class="toc-text">一、前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、分布式锁的四要素"><span class="toc-number">1.2.</span> <span class="toc-text">二、分布式锁的四要素</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、-Redis实现方式"><span class="toc-number">1.3.</span> <span class="toc-text">三、 Redis实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-Redis加锁"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 Redis加锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-Redis解锁"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 Redis解锁</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、-Etcd实现方式"><span class="toc-number">1.4.</span> <span class="toc-text">四、 Etcd实现方式</span></a></li></ol></li></ol>
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式锁实现"><span class="toc-number">1.</span> <span class="toc-text">分布式锁实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、前言"><span class="toc-number">1.1.</span> <span class="toc-text">一、前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、分布式锁的四要素"><span class="toc-number">1.2.</span> <span class="toc-text">二、分布式锁的四要素</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、-Redis实现方式"><span class="toc-number">1.3.</span> <span class="toc-text">三、 Redis实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-Redis加锁"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 Redis加锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-Redis解锁"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 Redis解锁</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、-Etcd实现方式"><span class="toc-number">1.4.</span> <span class="toc-text">四、 Etcd实现方式</span></a></li></ol></li></ol>
 		
 		</div>
 		
@@ -112,7 +112,7 @@
 <li>分布式锁</li>
 <li>etcd</li>
 </ul>
-<h2 id="分布式锁实现方式"><a href="#分布式锁实现方式" class="headerlink" title="分布式锁实现方式"></a>分布式锁实现方式</h2><h3 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h3><p>分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。</p>
+<h2 id="分布式锁实现"><a href="#分布式锁实现" class="headerlink" title="分布式锁实现"></a>分布式锁实现</h2><h3 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h3><p>分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。</p>
 <ul>
 <li>基于redis分分布式锁</li>
 <li>数据库乐观锁</li>
@@ -189,7 +189,7 @@
   <div id="toc" class="toc-aside">
   <strong class="toc-title">Contents</strong>
  
- <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式锁实现方式"><span class="toc-number">1.</span> <span class="toc-text">分布式锁实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、前言"><span class="toc-number">1.1.</span> <span class="toc-text">一、前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、分布式锁的四要素"><span class="toc-number">1.2.</span> <span class="toc-text">二、分布式锁的四要素</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、-Redis实现方式"><span class="toc-number">1.3.</span> <span class="toc-text">三、 Redis实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-Redis加锁"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 Redis加锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-Redis解锁"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 Redis解锁</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、-Etcd实现方式"><span class="toc-number">1.4.</span> <span class="toc-text">四、 Etcd实现方式</span></a></li></ol></li></ol>
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#分布式锁实现"><span class="toc-number">1.</span> <span class="toc-text">分布式锁实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、前言"><span class="toc-number">1.1.</span> <span class="toc-text">一、前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、分布式锁的四要素"><span class="toc-number">1.2.</span> <span class="toc-text">二、分布式锁的四要素</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、-Redis实现方式"><span class="toc-number">1.3.</span> <span class="toc-text">三、 Redis实现方式</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#3-1-Redis加锁"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 Redis加锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-2-Redis解锁"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 Redis解锁</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、-Etcd实现方式"><span class="toc-number">1.4.</span> <span class="toc-text">四、 Etcd实现方式</span></a></li></ol></li></ol>
  
   </div>
 
