@@ -83,6 +83,99 @@
         <header class="article-info clearfix">
   <h1 itemprop="name">
     
+      <a href="/2019/05/28/浅谈Docker容器隔离与限制/" title="浅谈Docker容器隔离与限制" itemprop="url">浅谈Docker容器隔离与限制</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
+		
+  <p class="article-time">
+    <time datetime="2019-05-28T14:52:05.000Z" itemprop="datePublished"> Published 2019-05-28</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+        
+        <h2 id="浅谈Docker容器隔离与限制"><a href="#浅谈Docker容器隔离与限制" class="headerlink" title="浅谈Docker容器隔离与限制"></a>浅谈Docker容器隔离与限制</h2><h3 id="一、隔离"><a href="#一、隔离" class="headerlink" title="一、隔离"></a>一、隔离</h3><p>让我们先来看一个小例子</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> docker run -ti busybox /bin/sh</span><br><span class="line">/ # ps </span><br><span class="line">PID   USER     TIME  COMMAND</span><br><span class="line">    1 root      0:00 /bin/sh</span><br><span class="line">    6 root      0:00 ps</span><br></pre></td></tr></table></figure>
+<p>可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（PID=1），而这个容器里一共有两个进程，这就意味着刚执行的/bin/sh和ps，已经被docker隔离在一个跟宿主机完全不同的环境中。</p>
+<p>本来，当我们在宿主机上运行一个/bin/sh程序，操作系统会为他分配一个进程号，比如PID=99，而现在，我们要通过docker把这个/bin/sh运行在一个容器中。这时候，docker就会为这个/bin/sh程序施一个障眼法，让他永远看不到宿主机的其他进程，并且让他认为自己就是PID=1的那个进程。</p>
+<p>这种机制，其实就是对被隔离的应用的进程空间做了手脚，使得这些进程只能看到重新计算过的进程编号。可是实际上，他们在宿主机的操作系统里，还是PID=99的进程。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> ps -ef |grep /bin/sh</span><br><span class="line">root     96 98  0 13:55 pts/1    00:00:00 docker run -ti busybox /bin/sh</span><br><span class="line">root     99 101  0 13:55 ?        00:00:00 /bin/sh</span><br></pre></td></tr></table></figure>
+<p><strong>这种技术，就是Linux里面的Namespace机制</strong>。而Namespace的使用方式也非常有意思： 它其实只是Linux创建新进程的一个可选参数，我们知道，在 Linux 系统中创建线程的系统调用是 clone()，比如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+<p>这个系统调用会为我们创建一个新的进程，并且返回它的进程号。</p>
+<p>而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定CLONE_NEWPID参数，比如</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, CLONE_NEWPID | SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+<p><strong>这时，新创建的进程将会“看到”一个全新的进程空间，在这个进程空间里，它的PID=1</strong>，之所以看到带引号，是因为这只是一个障眼法，在宿主机真实的进程空间里，这个进程的PID还是还是真实的数值，比如99。</p>
+<p><strong>而除了我们刚刚用到的PID Namespace，Linux系统还提供了Mount，UTS，IPC，Network，User这些Namespace，用来对各种不同的进程上下文进行障眼法操作。</strong></p>
+<p><strong>所以说，容器其实只是一种特殊的被施了障眼法的进程而已。</strong></p>
+<h3 id="二、限制"><a href="#二、限制" class="headerlink" title="二、限制"></a>二、限制</h3><p>已经通过Namespace创建了一个容器，为什么还需要对容器做限制呢？</p>
+<p>还是以上一个PID Namespace为例， 来解释这个问题。</p>
+<p>虽然容器内的第一号进程在障眼法的干扰下只能看到容器里的情况，但是在宿主机上，他作为99号进程与其他所有进程之间都是平等的竞争关系。这就意味着，虽然99号进程被隔离起来了，但是它能够使用的资源：cpu、内存，却是随时可以随时被宿主机上的其他进程占用的，当然，这个99号进程也可能会把整个系统的资源吃光。</p>
+<p><strong>而Linux Cgroups就是Linux内核中用来为进程设置资源限制的一个重要功能。</strong></p>
+<p><strong>Linux Cgroups全称为Linux Control Group。它最主要的功能就是对一个进程组进行资源的限制，包括cpu、内存、磁盘、网络带宽等。</strong> Cgroups给用户暴露出来的接口是文件系统，即它以文件和目录的组织形式在操作系统的<strong>/sys/fs/cgroup</strong>下。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 blkio</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpu -&gt; cpu,cpuacct</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpuacct -&gt; cpu,cpuacct</span><br><span class="line">drwxr-xr-x 6 root root  0 Mar 14 00:39 cpu,cpuacct</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 cpuset</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 devices</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 freezer</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 hugetlb</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 memory</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_cls -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 net_cls,net_prio</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_prio -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 perf_event</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 pids</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 systemd</span><br></pre></td></tr></table></figure>
+<p>可以看到，目录下有很多诸如cpu、memory这样的目录，也叫子系统，这些都是这台机器能够被Cgroups进行资限制的资源种类。而在子系统对应的资源种类下，你就可以看到对应的限制方法。比如cpu</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.clone_children</span><br><span class="line">--w--w--w-  1 root root 0 Mar 14 00:39 cgroup.event_control</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.procs</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cgroup.sane_behavior</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.stat</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage_percpu</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_quota_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_runtime_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.shares</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpu.stat</span><br><span class="line">drwxr-xr-x  3 root root 0 May 28 13:53 docker</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 notify_on_release</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 release_agent</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 tasks</span><br></pre></td></tr></table></figure>
+<p>如果熟悉 Linux CPU 管理的话，你就会在它的输出里注意到cpu.cfs_period_us、cpu.cfs_quota_us这样的关键词。这两个参数联合使用，可以用来限制进程在长度为cfs_period时间内，只能被分配到总量为cfs_quota的CPU时间。</p>
+<p>我们在此目录下创建一个test目录，可以发现该目录下自动生成了该子系统对应的资源限制文件。比如我们修改cpu.cfs_quota_us为20000, 这意味着每100ms（cfs_period）的时间里,该进程只能使用20ms(cfs_quota)的CPU时间，也就是说这个进程只能用到20%的CPU。</p>
+<p>我们在后台执行这样一个脚本：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">while : ; do : ; done &amp;</span><br><span class="line">[1] 226  //进程号</span><br></pre></td></tr></table></figure>
+<p>这里执行了一个死循环，可以把CPU吃到100%，我们先观察一下CPU的使用情况，应该很快就100%了，然后</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo 226 &gt; /sys/fs/cgroup/test/tasks</span><br></pre></td></tr></table></figure>
+<p>应该可以看到CPU很快就降到了20%。</p>
+<p><strong>简单粗暴的理解， Cgroups就是一个子系统目录加上一组资源限制文件的组合</strong></p>
+<h3 id="三、思考"><a href="#三、思考" class="headerlink" title="三、思考"></a>三、思考</h3><p>Cgroups对资源的限制能力也有一些不完善的地方，被提及最多的自然是/proc文件系统的问题</p>
+<p>/proc目录存储的是记录当前内核运行状态的一系列特殊文件，用户可以通过访问这些文件，查看系统以及当前运行进程的信息，这些文件也是top指令查看系统信息的主要来源。但是在容器内top查看信息，它显示的信息都是宿主机而不是当前容器的。</p>
+<p><strong>造成这个问题的原因是，/proc文件系统并不了解Cgroups限制的存在。</strong></p>
+<p>那么如何解决这个问题呢？ (lxcfs)</p>
+
+        
+        
+        <p class="article-more-link">
+          
+       </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/docker/">docker</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/docker/">docker</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+        <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
       <a href="/2019/05/26/分布式锁实现/" title="分布式锁实现" itemprop="url">分布式锁实现</a>
   </h1>
   <p class="article-author">By
@@ -710,6 +803,10 @@
 		  
 		
 		  
+			<li><a href="/categories/docker/" title="docker">docker<sup>1</sup></a></li>
+		  
+		
+		  
 			<li><a href="/categories/k8s/" title="k8s">k8s<sup>1</sup></a></li>
 		  
 		
@@ -747,15 +844,11 @@
 			
 		
 			
-				<li><a href="/tags/k8s/" title="k8s">k8s<sup>1</sup></a></li>
+				<li><a href="/tags/ipv6/" title="ipv6">ipv6<sup>1</sup></a></li>
 			
 		
 			
 				<li><a href="/tags/Lua/" title="Lua">Lua<sup>1</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/ipv6/" title="ipv6">ipv6<sup>1</sup></a></li>
 			
 		
 			
@@ -767,15 +860,23 @@
 			
 		
 			
+				<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+			
+		
+			
 				<li><a href="/tags/nginx/" title="nginx">nginx<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/ingress/" title="ingress">ingress<sup>1</sup></a></li>
+				<li><a href="/tags/docker/" title="docker">docker<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+				<li><a href="/tags/k8s/" title="k8s">k8s<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/ingress/" title="ingress">ingress<sup>1</sup></a></li>
 			
 		
 			

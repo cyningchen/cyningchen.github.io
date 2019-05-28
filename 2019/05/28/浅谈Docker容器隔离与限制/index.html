@@ -1,0 +1,565 @@
+
+ <!DOCTYPE HTML>
+<html >
+<head>
+  <meta charset="UTF-8">
+  
+    <title>浅谈Docker容器隔离与限制 | CyningChen - 博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="CyningChen">
+    
+
+    
+    <meta name="description" content="浅谈Docker容器隔离与限制一、隔离让我们先来看一个小例子 12345$ docker run -ti busybox /bin/sh/ # ps PID   USER     TIME  COMMAND    1 root      0:00 /bin/sh    6 root      0:00 ps 可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（">
+<meta name="keywords" content="docker">
+<meta property="og:type" content="article">
+<meta property="og:title" content="浅谈Docker容器隔离与限制">
+<meta property="og:url" content="http://yoursite.com/2019/05/28/浅谈Docker容器隔离与限制/index.html">
+<meta property="og:site_name" content="CyningChen - 博客">
+<meta property="og:description" content="浅谈Docker容器隔离与限制一、隔离让我们先来看一个小例子 12345$ docker run -ti busybox /bin/sh/ # ps PID   USER     TIME  COMMAND    1 root      0:00 /bin/sh    6 root      0:00 ps 可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-05-28T14:52:45.754Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="浅谈Docker容器隔离与限制">
+<meta name="twitter:description" content="浅谈Docker容器隔离与限制一、隔离让我们先来看一个小例子 12345$ docker run -ti busybox /bin/sh/ # ps PID   USER     TIME  COMMAND    1 root      0:00 /bin/sh    6 root      0:00 ps 可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（">
+
+    
+    <link rel="alternative" href="/atom.xml" title="CyningChen - 博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="CyningChen - 博客" title="CyningChen - 博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="CyningChen - 博客">CyningChen - 博客</a></h1>
+				<h2 class="blog-motto"></h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="Menu">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">主页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+						<li><a href="/categories">分类</a></li>
+					
+						<li><a href="/tags">标签</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:yoursite.com">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2019/05/28/浅谈Docker容器隔离与限制/" title="浅谈Docker容器隔离与限制" itemprop="url">浅谈Docker容器隔离与限制</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
+		
+  <p class="article-time">
+    <time datetime="2019-05-28T14:52:05.000Z" itemprop="datePublished"> Published 2019-05-28</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#浅谈Docker容器隔离与限制"><span class="toc-number">1.</span> <span class="toc-text">浅谈Docker容器隔离与限制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、隔离"><span class="toc-number">1.1.</span> <span class="toc-text">一、隔离</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、限制"><span class="toc-number">1.2.</span> <span class="toc-text">二、限制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、思考"><span class="toc-number">1.3.</span> <span class="toc-text">三、思考</span></a></li></ol></li></ol>
+		
+		</div>
+		
+		<h2 id="浅谈Docker容器隔离与限制"><a href="#浅谈Docker容器隔离与限制" class="headerlink" title="浅谈Docker容器隔离与限制"></a>浅谈Docker容器隔离与限制</h2><h3 id="一、隔离"><a href="#一、隔离" class="headerlink" title="一、隔离"></a>一、隔离</h3><p>让我们先来看一个小例子</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> docker run -ti busybox /bin/sh</span><br><span class="line">/ # ps </span><br><span class="line">PID   USER     TIME  COMMAND</span><br><span class="line">    1 root      0:00 /bin/sh</span><br><span class="line">    6 root      0:00 ps</span><br></pre></td></tr></table></figure>
+<p>可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（PID=1），而这个容器里一共有两个进程，这就意味着刚执行的/bin/sh和ps，已经被docker隔离在一个跟宿主机完全不同的环境中。</p>
+<p>本来，当我们在宿主机上运行一个/bin/sh程序，操作系统会为他分配一个进程号，比如PID=99，而现在，我们要通过docker把这个/bin/sh运行在一个容器中。这时候，docker就会为这个/bin/sh程序施一个障眼法，让他永远看不到宿主机的其他进程，并且让他认为自己就是PID=1的那个进程。</p>
+<p>这种机制，其实就是对被隔离的应用的进程空间做了手脚，使得这些进程只能看到重新计算过的进程编号。可是实际上，他们在宿主机的操作系统里，还是PID=99的进程。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> ps -ef |grep /bin/sh</span><br><span class="line">root     96 98  0 13:55 pts/1    00:00:00 docker run -ti busybox /bin/sh</span><br><span class="line">root     99 101  0 13:55 ?        00:00:00 /bin/sh</span><br></pre></td></tr></table></figure>
+<p><strong>这种技术，就是Linux里面的Namespace机制</strong>。而Namespace的使用方式也非常有意思： 它其实只是Linux创建新进程的一个可选参数，我们知道，在 Linux 系统中创建线程的系统调用是 clone()，比如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+<p>这个系统调用会为我们创建一个新的进程，并且返回它的进程号。</p>
+<p>而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定CLONE_NEWPID参数，比如</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, CLONE_NEWPID | SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+<p><strong>这时，新创建的进程将会“看到”一个全新的进程空间，在这个进程空间里，它的PID=1</strong>，之所以看到带引号，是因为这只是一个障眼法，在宿主机真实的进程空间里，这个进程的PID还是还是真实的数值，比如99。</p>
+<p><strong>而除了我们刚刚用到的PID Namespace，Linux系统还提供了Mount，UTS，IPC，Network，User这些Namespace，用来对各种不同的进程上下文进行障眼法操作。</strong></p>
+<p><strong>所以说，容器其实只是一种特殊的被施了障眼法的进程而已。</strong></p>
+<h3 id="二、限制"><a href="#二、限制" class="headerlink" title="二、限制"></a>二、限制</h3><p>已经通过Namespace创建了一个容器，为什么还需要对容器做限制呢？</p>
+<p>还是以上一个PID Namespace为例， 来解释这个问题。</p>
+<p>虽然容器内的第一号进程在障眼法的干扰下只能看到容器里的情况，但是在宿主机上，他作为99号进程与其他所有进程之间都是平等的竞争关系。这就意味着，虽然99号进程被隔离起来了，但是它能够使用的资源：cpu、内存，却是随时可以随时被宿主机上的其他进程占用的，当然，这个99号进程也可能会把整个系统的资源吃光。</p>
+<p><strong>而Linux Cgroups就是Linux内核中用来为进程设置资源限制的一个重要功能。</strong></p>
+<p><strong>Linux Cgroups全称为Linux Control Group。它最主要的功能就是对一个进程组进行资源的限制，包括cpu、内存、磁盘、网络带宽等。</strong> Cgroups给用户暴露出来的接口是文件系统，即它以文件和目录的组织形式在操作系统的<strong>/sys/fs/cgroup</strong>下。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 blkio</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpu -&gt; cpu,cpuacct</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpuacct -&gt; cpu,cpuacct</span><br><span class="line">drwxr-xr-x 6 root root  0 Mar 14 00:39 cpu,cpuacct</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 cpuset</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 devices</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 freezer</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 hugetlb</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 memory</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_cls -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 net_cls,net_prio</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_prio -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 perf_event</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 pids</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 systemd</span><br></pre></td></tr></table></figure>
+<p>可以看到，目录下有很多诸如cpu、memory这样的目录，也叫子系统，这些都是这台机器能够被Cgroups进行资限制的资源种类。而在子系统对应的资源种类下，你就可以看到对应的限制方法。比如cpu</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.clone_children</span><br><span class="line">--w--w--w-  1 root root 0 Mar 14 00:39 cgroup.event_control</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.procs</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cgroup.sane_behavior</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.stat</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage_percpu</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_quota_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_runtime_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.shares</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpu.stat</span><br><span class="line">drwxr-xr-x  3 root root 0 May 28 13:53 docker</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 notify_on_release</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 release_agent</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 tasks</span><br></pre></td></tr></table></figure>
+<p>如果熟悉 Linux CPU 管理的话，你就会在它的输出里注意到cpu.cfs_period_us、cpu.cfs_quota_us这样的关键词。这两个参数联合使用，可以用来限制进程在长度为cfs_period时间内，只能被分配到总量为cfs_quota的CPU时间。</p>
+<p>我们在此目录下创建一个test目录，可以发现该目录下自动生成了该子系统对应的资源限制文件。比如我们修改cpu.cfs_quota_us为20000, 这意味着每100ms（cfs_period）的时间里,该进程只能使用20ms(cfs_quota)的CPU时间，也就是说这个进程只能用到20%的CPU。</p>
+<p>我们在后台执行这样一个脚本：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">while : ; do : ; done &amp;</span><br><span class="line">[1] 226  //进程号</span><br></pre></td></tr></table></figure>
+<p>这里执行了一个死循环，可以把CPU吃到100%，我们先观察一下CPU的使用情况，应该很快就100%了，然后</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo 226 &gt; /sys/fs/cgroup/test/tasks</span><br></pre></td></tr></table></figure>
+<p>应该可以看到CPU很快就降到了20%。</p>
+<p><strong>简单粗暴的理解， Cgroups就是一个子系统目录加上一组资源限制文件的组合</strong></p>
+<h3 id="三、思考"><a href="#三、思考" class="headerlink" title="三、思考"></a>三、思考</h3><p>Cgroups对资源的限制能力也有一些不完善的地方，被提及最多的自然是/proc文件系统的问题</p>
+<p>/proc目录存储的是记录当前内核运行状态的一系列特殊文件，用户可以通过访问这些文件，查看系统以及当前运行进程的信息，这些文件也是top指令查看系统信息的主要来源。但是在容器内top查看信息，它显示的信息都是宿主机而不是当前容器的。</p>
+<p><strong>造成这个问题的原因是，/proc文件系统并不了解Cgroups限制的存在。</strong></p>
+<p>那么如何解决这个问题呢？ (lxcfs)</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/docker/">docker</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/docker/">docker</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="http://yoursite.com/2019/05/28/浅谈Docker容器隔离与限制/" data-title="浅谈Docker容器隔离与限制 | CyningChen - 博客" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2019/05/26/分布式锁实现/"  title="分布式锁实现">
+ <strong>下一篇：</strong><br/> 
+ <span>分布式锁实现
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="Show Sidebar"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">Contents</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#浅谈Docker容器隔离与限制"><span class="toc-number">1.</span> <span class="toc-text">浅谈Docker容器隔离与限制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、隔离"><span class="toc-number">1.1.</span> <span class="toc-text">一、隔离</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、限制"><span class="toc-number">1.2.</span> <span class="toc-text">二、限制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、思考"><span class="toc-number">1.3.</span> <span class="toc-text">三、思考</span></a></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="Hide Sidebar"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/Lua/" title="Lua">Lua<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/docker/" title="docker">docker<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/k8s/" title="k8s">k8s<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/python基础/" title="python基础">python基础<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/python进阶/" title="python进阶">python进阶<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/运维/" title="运维">运维<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/python/" title="python">python<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/ipv6/" title="ipv6">ipv6<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Lua/" title="Lua">Lua<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/设计模式/" title="设计模式">设计模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/装饰器/" title="装饰器">装饰器<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/nginx/" title="nginx">nginx<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/docker/" title="docker">docker<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/k8s/" title="k8s">k8s<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/ingress/" title="ingress">ingress<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/分布式锁/" title="分布式锁">分布式锁<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/redis/" title="redis">redis<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/etcd/" title="etcd">etcd<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://www.github.com/cyningchen" target="_blank" title="我的github">我的github</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<section class="info">
+		<p> 人与人间的区别就在于是否能坚持. <br/>
+			</p>
+	</section>
+	 
+	<div class="social-font" class="clearfix">
+		
+		
+		<a href="https://github.com/cyningchen" target="_blank" class="icon-github" title="github"></a>
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		<a href="mailto:17621906833@163.com" target="_blank" class="icon-email" title="Email Me"></a>
+		
+	</div>
+			
+		
+
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2019 
+		
+		<a href="/about" target="_blank" title="CyningChen">CyningChen</a>
+		
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="Back to Top"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
