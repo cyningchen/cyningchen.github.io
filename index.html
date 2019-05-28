@@ -38,7 +38,7 @@
 <div>
 		
 			<div id="imglogo">
-				<a href="/"><img src="/img/logo.png" alt="CyningChen - 博客" title="CyningChen - 博客"/></a>
+				<a href="/"><img src="/img/author.png" alt="CyningChen - 博客" title="CyningChen - 博客"/></a>
 			</div>
 			
 			<div id="textlogo">
@@ -77,708 +77,199 @@
     <div id="container">
       <div id="main">
 
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2019/05/28/浅谈Docker容器隔离与限制/" title="浅谈Docker容器隔离与限制" itemprop="url">浅谈Docker容器隔离与限制</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2019-05-28T14:52:05.000Z" itemprop="datePublished"> Published 2019-05-28</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h2 id="浅谈Docker容器隔离与限制"><a href="#浅谈Docker容器隔离与限制" class="headerlink" title="浅谈Docker容器隔离与限制"></a>浅谈Docker容器隔离与限制</h2><h3 id="一、隔离"><a href="#一、隔离" class="headerlink" title="一、隔离"></a>一、隔离</h3><p>让我们先来看一个小例子</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> docker run -ti busybox /bin/sh</span><br><span class="line">/ # ps </span><br><span class="line">PID   USER     TIME  COMMAND</span><br><span class="line">    1 root      0:00 /bin/sh</span><br><span class="line">    6 root      0:00 ps</span><br></pre></td></tr></table></figure>
-<p>可以看到，我们在docker容器里最开始执行的/bin/sh，就是这个容器内部的1号进程（PID=1），而这个容器里一共有两个进程，这就意味着刚执行的/bin/sh和ps，已经被docker隔离在一个跟宿主机完全不同的环境中。</p>
-<p>本来，当我们在宿主机上运行一个/bin/sh程序，操作系统会为他分配一个进程号，比如PID=99，而现在，我们要通过docker把这个/bin/sh运行在一个容器中。这时候，docker就会为这个/bin/sh程序施一个障眼法，让他永远看不到宿主机的其他进程，并且让他认为自己就是PID=1的那个进程。</p>
-<p>这种机制，其实就是对被隔离的应用的进程空间做了手脚，使得这些进程只能看到重新计算过的进程编号。可是实际上，他们在宿主机的操作系统里，还是PID=99的进程。</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">$</span> ps -ef |grep /bin/sh</span><br><span class="line">root     96 98  0 13:55 pts/1    00:00:00 docker run -ti busybox /bin/sh</span><br><span class="line">root     99 101  0 13:55 ?        00:00:00 /bin/sh</span><br></pre></td></tr></table></figure>
-<p><strong>这种技术，就是Linux里面的Namespace机制</strong>。而Namespace的使用方式也非常有意思： 它其实只是Linux创建新进程的一个可选参数，我们知道，在 Linux 系统中创建线程的系统调用是 clone()，比如：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
-<p>这个系统调用会为我们创建一个新的进程，并且返回它的进程号。</p>
-<p>而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定CLONE_NEWPID参数，比如</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> pid = clone(main_function, stack_size, CLONE_NEWPID | SIGCHLD, <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
-<p><strong>这时，新创建的进程将会“看到”一个全新的进程空间，在这个进程空间里，它的PID=1</strong>，之所以看到带引号，是因为这只是一个障眼法，在宿主机真实的进程空间里，这个进程的PID还是还是真实的数值，比如99。</p>
-<p><strong>而除了我们刚刚用到的PID Namespace，Linux系统还提供了Mount，UTS，IPC，Network，User这些Namespace，用来对各种不同的进程上下文进行障眼法操作。</strong></p>
-<p><strong>所以说，容器其实只是一种特殊的被施了障眼法的进程而已。</strong></p>
-<h3 id="二、限制"><a href="#二、限制" class="headerlink" title="二、限制"></a>二、限制</h3><p>已经通过Namespace创建了一个容器，为什么还需要对容器做限制呢？</p>
-<p>还是以上一个PID Namespace为例， 来解释这个问题。</p>
-<p>虽然容器内的第一号进程在障眼法的干扰下只能看到容器里的情况，但是在宿主机上，他作为99号进程与其他所有进程之间都是平等的竞争关系。这就意味着，虽然99号进程被隔离起来了，但是它能够使用的资源：cpu、内存，却是随时可以随时被宿主机上的其他进程占用的，当然，这个99号进程也可能会把整个系统的资源吃光。</p>
-<p><strong>而Linux Cgroups就是Linux内核中用来为进程设置资源限制的一个重要功能。</strong></p>
-<p><strong>Linux Cgroups全称为Linux Control Group。它最主要的功能就是对一个进程组进行资源的限制，包括cpu、内存、磁盘、网络带宽等。</strong> Cgroups给用户暴露出来的接口是文件系统，即它以文件和目录的组织形式在操作系统的<strong>/sys/fs/cgroup</strong>下。</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 blkio</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpu -&gt; cpu,cpuacct</span><br><span class="line">lrwxrwxrwx 1 root root 11 Mar 14 00:39 cpuacct -&gt; cpu,cpuacct</span><br><span class="line">drwxr-xr-x 6 root root  0 Mar 14 00:39 cpu,cpuacct</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 cpuset</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 devices</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 freezer</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 hugetlb</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 memory</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_cls -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 net_cls,net_prio</span><br><span class="line">lrwxrwxrwx 1 root root 16 Mar 14 00:39 net_prio -&gt; net_cls,net_prio</span><br><span class="line">drwxr-xr-x 3 root root  0 Mar 14 00:39 perf_event</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 pids</span><br><span class="line">drwxr-xr-x 5 root root  0 Mar 14 00:39 systemd</span><br></pre></td></tr></table></figure>
-<p>可以看到，目录下有很多诸如cpu、memory这样的目录，也叫子系统，这些都是这台机器能够被Cgroups进行资限制的资源种类。而在子系统对应的资源种类下，你就可以看到对应的限制方法。比如cpu</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.clone_children</span><br><span class="line">--w--w--w-  1 root root 0 Mar 14 00:39 cgroup.event_control</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cgroup.procs</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cgroup.sane_behavior</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.stat</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpuacct.usage_percpu</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.cfs_quota_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_period_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.rt_runtime_us</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 cpu.shares</span><br><span class="line">-r--r--r--  1 root root 0 Mar 14 00:39 cpu.stat</span><br><span class="line">drwxr-xr-x  3 root root 0 May 28 13:53 docker</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 notify_on_release</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 release_agent</span><br><span class="line">-rw-r--r--  1 root root 0 Mar 14 00:39 tasks</span><br></pre></td></tr></table></figure>
-<p>如果熟悉 Linux CPU 管理的话，你就会在它的输出里注意到cpu.cfs_period_us、cpu.cfs_quota_us这样的关键词。这两个参数联合使用，可以用来限制进程在长度为cfs_period时间内，只能被分配到总量为cfs_quota的CPU时间。</p>
-<p>我们在此目录下创建一个test目录，可以发现该目录下自动生成了该子系统对应的资源限制文件。比如我们修改cpu.cfs_quota_us为20000, 这意味着每100ms（cfs_period）的时间里,该进程只能使用20ms(cfs_quota)的CPU时间，也就是说这个进程只能用到20%的CPU。</p>
-<p>我们在后台执行这样一个脚本：</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">while : ; do : ; done &amp;</span><br><span class="line">[1] 226  //进程号</span><br></pre></td></tr></table></figure>
-<p>这里执行了一个死循环，可以把CPU吃到100%，我们先观察一下CPU的使用情况，应该很快就100%了，然后</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo 226 &gt; /sys/fs/cgroup/test/tasks</span><br></pre></td></tr></table></figure>
-<p>应该可以看到CPU很快就降到了20%。</p>
-<p><strong>简单粗暴的理解， Cgroups就是一个子系统目录加上一组资源限制文件的组合</strong></p>
-<h3 id="三、思考"><a href="#三、思考" class="headerlink" title="三、思考"></a>三、思考</h3><p>Cgroups对资源的限制能力也有一些不完善的地方，被提及最多的自然是/proc文件系统的问题</p>
-<p>/proc目录存储的是记录当前内核运行状态的一系列特殊文件，用户可以通过访问这些文件，查看系统以及当前运行进程的信息，这些文件也是top指令查看系统信息的主要来源。但是在容器内top查看信息，它显示的信息都是宿主机而不是当前容器的。</p>
-<p><strong>造成这个问题的原因是，/proc文件系统并不了解Cgroups限制的存在。</strong></p>
-<p>那么如何解决这个问题呢？ (lxcfs)</p>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/docker/">docker</a>
-</div>
-
-
-  <div class="article-tags">
   
-  <span></span> <a href="/tags/docker/">docker</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2019/05/26/分布式锁实现/" title="分布式锁实现" itemprop="url">分布式锁实现</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2019-05-25T16:16:06.000Z" itemprop="datePublished"> Published 2019-05-26</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h2 id="分布式锁实现"><a href="#分布式锁实现" class="headerlink" title="分布式锁实现"></a>分布式锁实现</h2><h3 id="一、前言"><a href="#一、前言" class="headerlink" title="一、前言"></a>一、前言</h3><p>分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。</p>
-<ul>
-<li>基于redis分分布式锁</li>
-<li>数据库乐观锁</li>
-<li>基于etcd的分布式锁</li>
-<li>基于zookeeper的分布式锁</li>
-</ul>
-<h3 id="二、分布式锁的四要素"><a href="#二、分布式锁的四要素" class="headerlink" title="二、分布式锁的四要素"></a>二、分布式锁的四要素</h3><ul>
-<li>互斥性：在任意时刻，只有一个客户端能持有锁</li>
-<li>不会发生死锁： 即使有一个客户端在持有锁的期间崩溃而没有主动解锁，也能保证后续其他客户端能加锁</li>
-<li>具有容错性： 只要大部分节点正常运行，客户端就可以加锁和解锁</li>
-<li>解铃还须系铃人： 加锁和解锁必须是同一个客户端，客户端不能把别人的锁给解了</li>
-</ul>
-<h3 id="三、-Redis实现方式"><a href="#三、-Redis实现方式" class="headerlink" title="三、 Redis实现方式"></a>三、 Redis实现方式</h3><h4 id="3-1-Redis加锁"><a href="#3-1-Redis加锁" class="headerlink" title="3.1 Redis加锁"></a>3.1 Redis加锁</h4><p><strong>Talk is cheap, show me the code</strong></p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">String result = jedis.set(lockKey, requestId, SET_IF_NOT_EXIST, SET_WITH_EXPIRE_TIME, expireTime);</span><br><span class="line"><span class="keyword">if</span> (LOCK_SUCCESS.equals(result)) &#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> <span class="keyword">false</span>;</span><br></pre></td></tr></table></figure>
-<p>执行上面的方法只会导致两种结果： 1. 当前没有锁，那么进行加锁的操作，并对锁设置超时时间，同时value表示加锁的客户端。2. 已有锁存在，不做任何操作。</p>
-<p>心细的童鞋就会发现了，我们的加锁代码满足我们可靠性里描述的三个条件。首先，set()加入了NX参数，可以保证如果已有key存在，则函数不会调用成功，也就是只有一个客户端能持有锁，满足互斥性。其次，由于我们对锁设置了过期时间，即使锁的持有者后续发生崩溃而没有解锁，锁也会因为到了过期时间而自动解锁（即key被删除），不会发生死锁。最后，因为我们将value赋值为requestId，代表加锁的客户端请求标识，那么在客户端在解锁的时候就可以进行校验是否是同一个客户端。由于我们只考虑Redis单机部署的场景，所以容错性我们暂不考虑。</p>
-<h4 id="3-2-Redis解锁"><a href="#3-2-Redis解锁" class="headerlink" title="3.2 Redis解锁"></a>3.2 Redis解锁</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">String script = &quot;if redis.call(&apos;get&apos;, KEYS[1]) == ARGV[1] then return redis.call(&apos;del&apos;, KEYS[1]) else return 0 end&quot;;</span><br><span class="line">Object result = jedis.eval(script, Collections.singletonList(lockKey), Collections.singletonList(requestId));</span><br><span class="line">if (RELEASE_SUCCESS.equals(result)) &#123;</span><br><span class="line">	return true;</span><br><span class="line">&#125;</span><br><span class="line">return false;</span><br></pre></td></tr></table></figure>
-<p>这段Lua代码的功能是什么呢？其实很简单，首先获取锁对应的value值，检查是否与requestId相等，如果相等则删除锁（解锁）。那么为什么要使用Lua语言来实现呢？因为要确保上述操作是原子性的。</p>
-<p>eval命令执行lua代码时，lua代码将被当成一个命令去执行，并且直到eval命令执行完成。</p>
-<h3 id="四、-Etcd实现方式"><a href="#四、-Etcd实现方式" class="headerlink" title="四、 Etcd实现方式"></a>四、 Etcd实现方式</h3><p>原理都类似，直接上代码</p>
-<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(jobLock *JobLock)</span> <span class="title">TryLock</span><span class="params">()</span> <span class="params">(err error)</span></span> &#123;</span><br><span class="line">    <span class="keyword">var</span> (</span><br><span class="line">    leaseGrantResp *clientv3.LeaseGrantResponse</span><br><span class="line">    cancelCtx      context.Context</span><br><span class="line">    cancelFunc     context.CancelFunc</span><br><span class="line">    leaseId        clientv3.LeaseID</span><br><span class="line">    keepRespChan   &lt;-<span class="keyword">chan</span> *clientv3.LeaseKeepAliveResponse</span><br><span class="line">    txn            clientv3.Txn</span><br><span class="line">    lockKey        <span class="keyword">string</span></span><br><span class="line">    txnResp        *clientv3.TxnResponse</span><br><span class="line">    )</span><br><span class="line">    <span class="comment">// 创建租约</span></span><br><span class="line">    <span class="keyword">if</span> leaseGrantResp, err = jobLock.lease.Grant(context.TODO(), <span class="number">5</span>); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    	<span class="keyword">return</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 自动续约</span></span><br><span class="line">    cancelCtx, cancelFunc = context.WithCancel(context.TODO())</span><br><span class="line">    leaseId = leaseGrantResp.ID</span><br><span class="line">    <span class="keyword">if</span> keepRespChan, err = jobLock.lease.KeepAlive(cancelCtx, leaseId); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">goto</span> FAIL</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 处理续租应答协程</span></span><br><span class="line">    <span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">        <span class="keyword">var</span> (</span><br><span class="line">        keepResp *clientv3.LeaseKeepAliveResponse</span><br><span class="line">        )</span><br><span class="line">        <span class="keyword">for</span> &#123;</span><br><span class="line">            <span class="keyword">select</span> &#123;</span><br><span class="line">            <span class="keyword">case</span> keepResp = &lt;-keepRespChan:</span><br><span class="line">            	<span class="keyword">if</span> keepResp == <span class="literal">nil</span> &#123;</span><br><span class="line">            		<span class="keyword">goto</span> END</span><br><span class="line">            &#125;</span><br><span class="line">        	&#125;</span><br><span class="line">        &#125;</span><br><span class="line">        END:</span><br><span class="line">    &#125;()</span><br><span class="line">    <span class="comment">// 创建事务txn</span></span><br><span class="line">    txn = jobLock.kv.Txn(context.TODO())</span><br><span class="line">    lockKey = common.JOB_LOCK_DIR + jobLock.jobName</span><br><span class="line">    <span class="comment">// 事务抢锁</span></span><br><span class="line">    txn.If(clientv3.Compare(clientv3.CreateRevision(lockKey), <span class="string">"="</span>, <span class="number">0</span>)).</span><br><span class="line">    Then(clientv3.OpPut(lockKey, <span class="string">""</span>, clientv3.WithLease(leaseId))).</span><br><span class="line">    Else(clientv3.OpGet(lockKey))</span><br><span class="line">    <span class="comment">// 提交事务</span></span><br><span class="line">    <span class="keyword">if</span> txnResp, err = txn.Commit(); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    	<span class="keyword">goto</span> FAIL</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 成功返回，失败释放租约</span></span><br><span class="line">    <span class="keyword">if</span> !txnResp.Succeeded &#123;</span><br><span class="line">    	err = common.ERR_LOCK_ALREADY_REQUIRED</span><br><span class="line">    	<span class="keyword">goto</span> FAIL</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 抢锁成功</span></span><br><span class="line">    jobLock.leaseId = leaseId</span><br><span class="line">    jobLock.cancelFunc = cancelFunc</span><br><span class="line">    jobLock.isLocked = <span class="literal">true</span></span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">FAIL:</span><br><span class="line">    cancelFunc() <span class="comment">//取消任务</span></span><br><span class="line">    jobLock.lease.Revoke(context.TODO(), leaseId) <span class="comment">// 释放租约</span></span><br><span class="line">    <span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 解锁代码</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(jobLock *JobLock)</span> <span class="title">Unlock</span><span class="params">()</span></span> &#123;</span><br><span class="line">        <span class="keyword">if</span> jobLock.isLocked &#123;</span><br><span class="line">                jobLock.cancelFunc()</span><br><span class="line">                jobLock.lease.Revoke(context.TODO(), jobLock.leaseId)</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 获取锁代码</span></span><br><span class="line">err = jobLock.TryLock()  <span class="comment">// 可以修改为传入过期时间， 以及requestid标记为解铃人，后续解锁判断是否是自己加的锁，不是的话则放弃解锁</span></span><br><span class="line"><span class="keyword">defer</span> jobLock.Unlock() <span class="comment">// 任务执行完成，释放锁</span></span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span>&#123;</span><br><span class="line">    <span class="comment">// 执行任务</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-<p>这里实现的是一个与任务有同样生命周期的分布式锁，因为<strong>jobLock.lease.KeepAlive</strong>表示永不过期，一直续租，但是我执行任务的代码中有defer的声明，因此也不会发生死锁，去掉KeepAlive代码和续租应答，就是一个会过期的锁了。 这里也没有实现解铃还须系铃人，有兴趣可以自行尝试一下。</p>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/分布式/">分布式</a>
-</div>
-
-
-  <div class="article-tags">
+<section class="post" itemscope itemprop="blogitem">
   
-  <span></span> <a href="/tags/分布式锁/">分布式锁</a><a href="/tags/redis/">redis</a><a href="/tags/etcd/">etcd</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2019/05/26/Mysql总结/" title="Mysql总结" itemprop="url">Mysql总结</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2019-05-25T16:02:10.000Z" itemprop="datePublished"> Published 2019-05-26</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h2 id="Mysql总结"><a href="#Mysql总结" class="headerlink" title="Mysql总结"></a>Mysql总结</h2><h3 id="一、-Mysql事务"><a href="#一、-Mysql事务" class="headerlink" title="一、 Mysql事务"></a>一、 Mysql事务</h3><h4 id="1-1-mysql事务的定义"><a href="#1-1-mysql事务的定义" class="headerlink" title="1.1 mysql事务的定义"></a>1.1 mysql事务的定义</h4><ul>
-<li>事务是数据库并发控制的基本单位</li>
-<li>食物可以看作是一系列SQL语句的集合</li>
-<li>事务要么全部执行成功，要么全部执行失败（回滚）</li>
-</ul>
-<h4 id="1-2-事务的四个基本特性（ACID）"><a href="#1-2-事务的四个基本特性（ACID）" class="headerlink" title="1.2 事务的四个基本特性（ACID）"></a>1.2 事务的四个基本特性（ACID）</h4><ul>
-<li>原子性（Atomicity）: 一个事务中所有操作全部完成或失败</li>
-<li>一致性（Consistency）: 事务开始和结束之后数据完整性没有被破坏</li>
-<li>隔离性（Isolation）:允许多个事务同时对数据库修改和读写</li>
-<li>持久性（Durability）: 事务结束后，修改是永久的不会丢失 </li>
-</ul>
-<h4 id="1-3-事务隔离级别"><a href="#1-3-事务隔离级别" class="headerlink" title="1.3 事务隔离级别"></a>1.3 事务隔离级别</h4><ol>
-<li>读未提交： 别的事务可以读取到未提交的改变</li>
-<li>读已提交： 只能读取到已经提交的数据</li>
-<li>可重复读： 同一个事务先后查询结果一样（mysql默认隔离级别）</li>
-<li>串行化： 事务完全串行化执行，隔离级别最高，执行效率最低</li>
-</ol>
-<h3 id="二、-乐观锁和悲观锁"><a href="#二、-乐观锁和悲观锁" class="headerlink" title="二、 乐观锁和悲观锁"></a>二、 乐观锁和悲观锁</h3><ul>
-<li>悲观锁： 现获取锁再进行更新操作。一锁二查三更新，可通过SQL <strong>select for update</strong>实现。</li>
-<li>select for update是行锁还是表锁只取决于能否使用索引，能则为行锁，否则为表锁（比如<strong>like</strong>、<strong>&lt;&gt;</strong>操作作会导致索引失效）。</li>
-<li>乐观锁： 先假设我修改的时候别人不会去修改，修改完毕后发现数据已经变了就回滚（一般通过<strong>版本号</strong>或<strong>时间戳</strong>结合业务代码实现）</li>
-<li>根据<strong>响应速度</strong>、<strong>冲突频率</strong>、<strong>重试代价</strong>来判断使用哪种锁</li>
-</ul>
-<h3 id="三、-Mysql索引原理及优化"><a href="#三、-Mysql索引原理及优化" class="headerlink" title="三、 Mysql索引原理及优化"></a>三、 Mysql索引原理及优化</h3><h4 id="3-1-索引简介"><a href="#3-1-索引简介" class="headerlink" title="3.1 索引简介"></a>3.1 索引简介</h4><ul>
-<li>索引是数据表中一个或者多个列进行排序的数据结构</li>
-<li>索引能大幅提升检索速度</li>
-<li>创建、更新索引本身也会耗费时间和空间（并不是索引越多越好）</li>
-</ul>
-<h4 id="3-2-B-树"><a href="#3-2-B-树" class="headerlink" title="3.2 B-树"></a>3.2 B-树</h4><h5 id="3-2-1-查找结构进化史"><a href="#3-2-1-查找结构进化史" class="headerlink" title="3.2.1 查找结构进化史"></a>3.2.1 查找结构进化史</h5><ol>
-<li>线性查找： 一个个找、实现简单、太慢</li>
-<li>二分查找：有序、简单、要求是有序的、插入特别慢</li>
-<li>hash： 查询快、占用空间、不适合存储大规模数据</li>
-<li>二叉查找树：  插入和查询很快、无法存大规模数据、复杂度退化</li>
-<li>平衡树： 解决二叉树退化问题；节点非常多的时候，依然树很高。</li>
-<li>多路查找树： 一个父亲多个孩子节点，节点过多，树不会特别深</li>
-<li>多路平衡查找树： <strong>B-树</strong>， 无法进行范围查找</li>
-<li>B+树</li>
-</ol>
-<h4 id="3-3-B-树"><a href="#3-3-B-树" class="headerlink" title="3.3 B+树"></a>3.3 B+树</h4><ul>
-<li>B+树是B-树的变形</li>
-<li>只有叶子节点上带有指向数据的指针（非叶子节点可以节约空间、增加树的）</li>
-<li>增加了树的度，即一个节点可以有更多个孩子，那么整体的树高会降低，我们知道树的查询复杂度和树高是相关的</li>
-<li>叶子节点通过指针相连，实现了范围查询</li>
-</ul>
-<h4 id="3-4-索引最佳实践"><a href="#3-4-索引最佳实践" class="headerlink" title="3.4 索引最佳实践"></a>3.4 索引最佳实践</h4><h5 id="3-4-1-什么时候创建索引"><a href="#3-4-1-什么时候创建索引" class="headerlink" title="3.4.1 什么时候创建索引"></a>3.4.1 什么时候创建索引</h5><ul>
-<li>经常用作查询条件的字段（where条件）</li>
-<li>经常用作表连接的字段</li>
-<li>经常出现在order by，group by之后的字段</li>
-</ul>
-<h5 id="3-4-2-需要注意的点"><a href="#3-4-2-需要注意的点" class="headerlink" title="3.4.2 需要注意的点"></a>3.4.2 需要注意的点</h5><ul>
-<li>非空字段(not null), mysql无法对空值作运算、比较。添加默认值。</li>
-<li>区分度高，离散度大，作为索引的字段尽量不要有大量相同的值</li>
-<li>索引的长度不要太长（比较耗费时间）</li>
-</ul>
-<h5 id="3-4-3-索引什么时候失效"><a href="#3-4-3-索引什么时候失效" class="headerlink" title="3.4.3 索引什么时候失效"></a>3.4.3 索引什么时候失效</h5><ul>
-<li>模糊匹配</li>
-<li>类型隐转（动态语言中需要注意）</li>
-<li>没有满足最左前缀原则</li>
-<li><strong>所有索引失效的问题都是由于B+树的key没有办法比较</strong></li>
-</ul>
-<h5 id="3-4-4-聚集、非聚集索引"><a href="#3-4-4-聚集、非聚集索引" class="headerlink" title="3.4.4 聚集、非聚集索引"></a>3.4.4 聚集、非聚集索引</h5><ul>
-<li>聚集还是非聚集指的是B+树叶子节点存的是指针还是数据记录</li>
-<li>MyIsam索引和数据分离，使用的是非聚集索引（对应数据目录下一个表会有两个文件.MYD和.MYI）</li>
-<li>Innodb数据文件就是索引文件，主键索引就是聚集索引</li>
-<li>innodb辅助索引中实际存储的是主键的值，通过找到主键进一步找到目标数据</li>
-</ul>
-<p>​    </p>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/mysql/">mysql</a>
-</div>
-
-
-  <div class="article-tags">
+    <a href="/2019/05/28/浅谈Docker容器隔离与限制/" title="浅谈Docker容器隔离与限制" itemprop="url">
   
-  <span></span> <a href="/tags/mysql/">mysql</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
+    <h1 itemprop="name">浅谈Docker容器隔离与限制</h1>
     
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
+     
+           <p itemprop="description" >浅谈Docker容器隔离与限制一、隔离让我们先来看一个小例子
+12345$ docker run -ti busybox /bin/sh/ # ps PID   USER     TIME  COMMAND    1 root      0:00 /bin/sh    6 roo</p>
+        
     
-      <a href="/2019/05/22/Kubernetes中Traefik作为Ingress控制器/" title="Kubernetes中Traefik作为Ingress控制器" itemprop="url">Kubernetes中Traefik作为Ingress控制器</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2019-05-22T15:12:30.000Z" itemprop="datePublished"> Published 2019-05-22</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h2 id="Kubernetes中Traefik作为Ingress控制器"><a href="#Kubernetes中Traefik作为Ingress控制器" class="headerlink" title="Kubernetes中Traefik作为Ingress控制器"></a><strong>Kubernetes中Traefik作为Ingress控制器</strong></h2><h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a><strong>简介</strong></h3><blockquote>
-<p>Traefik是一个开源的反向代理工具，在Kubernetes集群内充当Ingress的角色，具有高性能，配置灵活，可根据Kubernetes服务动态配置等优点 。    </p>
-</blockquote>
-<h3 id="一、必备环境"><a href="#一、必备环境" class="headerlink" title="一、必备环境"></a><strong>一、必备环境</strong></h3><ul>
-<li>kubernetes1.6+集群</li>
-<li>kubectl</li>
-</ul>
-<h3 id="二、Ingress-Traefik搭建"><a href="#二、Ingress-Traefik搭建" class="headerlink" title="二、Ingress-Traefik搭建"></a><strong>二、Ingress-Traefik搭建</strong></h3><h4 id="2-1-创建授权策略"><a href="#2-1-创建授权策略" class="headerlink" title="2.1 创建授权策略"></a>2.1 创建授权策略</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Namespace</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">ingress-traefik</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">  namespace:</span> <span class="string">ingress-traefik</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ClusterRole</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">rbac.authorization.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">rules:</span></span><br><span class="line"><span class="attr">  - apiGroups:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">""</span></span><br><span class="line"><span class="attr">    resources:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">services</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">endpoints</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">secrets</span></span><br><span class="line"><span class="attr">    verbs:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">get</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">list</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">watch</span></span><br><span class="line"><span class="attr">  - apiGroups:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">extensions</span></span><br><span class="line"><span class="attr">    resources:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">ingresses</span></span><br><span class="line"><span class="attr">    verbs:</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">get</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">list</span></span><br><span class="line"><span class="bullet">      -</span> <span class="string">watch</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">ClusterRoleBinding</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">rbac.authorization.k8s.io/v1beta1</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">roleRef:</span></span><br><span class="line"><span class="attr">  apiGroup:</span> <span class="string">rbac.authorization.k8s.io</span></span><br><span class="line"><span class="attr">  kind:</span> <span class="string">ClusterRole</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">subjects:</span></span><br><span class="line"><span class="attr">- kind:</span> <span class="string">ServiceAccount</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">  namespace:</span> <span class="string">ingress-traefik</span></span><br></pre></td></tr></table></figure>
-<h4 id="2-2-创建traefik-ingress-controller"><a href="#2-2-创建traefik-ingress-controller" class="headerlink" title="2.2 创建traefik-ingress-controller"></a>2.2 创建traefik-ingress-controller</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">extensions/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">  namespace:</span> <span class="string">ingress-traefik</span></span><br><span class="line"><span class="attr">  labels:</span></span><br><span class="line"><span class="attr">    k8s-app:</span> <span class="string">traefik-ingress-lb</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line"><span class="attr">  replicas:</span> <span class="number">1</span></span><br><span class="line"><span class="attr">  selector:</span></span><br><span class="line"><span class="attr">    matchLabels:</span></span><br><span class="line"><span class="attr">      k8s-app:</span> <span class="string">traefik-ingress-lb</span></span><br><span class="line"><span class="attr">  template:</span></span><br><span class="line"><span class="attr">    metadata:</span></span><br><span class="line"><span class="attr">      labels:</span></span><br><span class="line"><span class="attr">        k8s-app:</span> <span class="string">traefik-ingress-lb</span></span><br><span class="line"><span class="attr">        name:</span> <span class="string">traefik-ingress-lb</span></span><br><span class="line"><span class="attr">    spec:</span></span><br><span class="line"><span class="attr">      serviceAccountName:</span> <span class="string">traefik-ingress-controller</span></span><br><span class="line"><span class="attr">      hostNetwork:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">      containers:</span></span><br><span class="line"><span class="attr">      - image:</span> <span class="string">traefik</span></span><br><span class="line"><span class="attr">        name:</span> <span class="string">traefik-ingress-lb</span></span><br><span class="line"><span class="attr">        ports:</span></span><br><span class="line"><span class="attr">        - name:</span> <span class="string">http</span></span><br><span class="line"><span class="attr">          containerPort:</span> <span class="number">80</span></span><br><span class="line"><span class="attr">        - name:</span> <span class="string">admin</span></span><br><span class="line"><span class="attr">          containerPort:</span> <span class="number">8080</span></span><br><span class="line"><span class="attr">        args:</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--web</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--api</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--kubernetes</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--defaultentrypoints=http,https</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--entrypoints=Name:https</span> <span class="attr">Address::443</span> <span class="string">TLS</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--entrypoints=Name:http</span> <span class="attr">Address::80</span></span><br></pre></td></tr></table></figure>
-<p><strong>note:</strong> 这里，我用了和官方文档不同的部署策略，官方是<strong>nodePort&gt;service&gt;ingress-traefix&gt;目标service</strong>，我这里直接使用<strong>hostNetwork</strong>的方式，ingress-traefik直接监听本地网络接口，省略了前面两步。 大家也可以参考官方<a href="https://docs.traefik.io/user-guide/kubernetes/" target="_blank" rel="noopener">文档</a>，两种方式各有优劣，这里不做对比。 使用kubectl apply -f xxx.yaml执行以上两个文件，至此，ingress-traefik-controller已经搭建好了</p>
-<h4 id="2-3-验证"><a href="#2-3-验证" class="headerlink" title="2.3 验证"></a>2.3 验证</h4><p>访问本地ip:8080，能显示以下画面即成功</p>
-<p><img src="/img/ingress验证.png" alt="验证"></p>
-<h4 id="2-4-ingress-traefik负载tomcat服务"><a href="#2-4-ingress-traefik负载tomcat服务" class="headerlink" title="2.4 ingress-traefik负载tomcat服务"></a>2.4 ingress-traefik负载tomcat服务</h4><p>创建tomcat服务</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: v1</span><br><span class="line">kind: Service</span><br><span class="line">metadata:</span><br><span class="line">  name: tomcat</span><br><span class="line">  annotations:</span><br><span class="line">    traefik.ingress.kubernetes.io/affinity: &quot;true&quot;</span><br><span class="line">    traefik.ingress.kubernetes.io/load-balancer-method: drr</span><br><span class="line">    traefik.ingress.kubernetes.io/session-cookie-name: &quot;ingress-traefik&quot;</span><br><span class="line">spec:</span><br><span class="line">  ports:</span><br><span class="line">  - port: 80</span><br><span class="line">    targetPort: 8080</span><br><span class="line">  selector:</span><br><span class="line">    app: mytomcat</span><br><span class="line">---</span><br><span class="line">apiVersion: apps/v1</span><br><span class="line">kind: Deployment</span><br><span class="line">metadata:</span><br><span class="line">  name: mytomcat</span><br><span class="line">spec:</span><br><span class="line">  replicas: 3</span><br><span class="line">  selector:</span><br><span class="line">    matchLabels:</span><br><span class="line">      app: mytomcat</span><br><span class="line">  template:</span><br><span class="line">    metadata:</span><br><span class="line">      name: mytomcat</span><br><span class="line">      labels:</span><br><span class="line">        app: mytomcat</span><br><span class="line">    spec:</span><br><span class="line">      containers:</span><br><span class="line">      - name: mytomcat</span><br><span class="line">        image: tomcat:8</span><br><span class="line">        ports:</span><br><span class="line">        - containerPort: 8080</span><br><span class="line">        volumeMounts:</span><br><span class="line">        - mountPath: &quot;/tmp&quot;</span><br><span class="line">          name: test-vol</span><br><span class="line">      volumes:</span><br><span class="line">      - name: test-vol</span><br><span class="line">        hostPath:</span><br><span class="line">          path: /tmp</span><br></pre></td></tr></table></figure>
-<p>这样，本地就有一个名为<strong>tomcat</strong>的服务，服务端口为<strong>80</strong>，创建ingress服务为目标服务做负载</p>
-<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">extensions/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">tomcat-traefik</span></span><br><span class="line"><span class="attr">  annotations:</span></span><br><span class="line">    <span class="string">kubernetes.io/ingress.class:</span> <span class="string">traefik</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line"><span class="attr">  rules:</span></span><br><span class="line"><span class="attr">  - host:</span> <span class="string">traefik-ui.local</span></span><br><span class="line"><span class="attr">    http:</span></span><br><span class="line"><span class="attr">      paths:</span></span><br><span class="line"><span class="attr">      - path:</span> <span class="string">/</span></span><br><span class="line"><span class="attr">        backend:</span></span><br><span class="line"><span class="attr">          serviceName:</span> <span class="string">tomcat</span></span><br><span class="line"><span class="attr">          servicePort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
-<p>kubectl apply -f xxx.yaml执行</p>
-<p><strong>note:</strong>  host需要添加到hosts文件中才能解析出来，关于windows下如何添加hosts自行百度。</p>
-<h4 id="2-5-效果图"><a href="#2-5-效果图" class="headerlink" title="2.5 效果图"></a>2.5 效果图</h4><p><img src="/img/效果图1.png" alt="效果图1"></p>
-<p><img src="/img/效果图2.png" alt="效果图2"></p>
-<h3 id="三、总结"><a href="#三、总结" class="headerlink" title="三、总结"></a>三、总结</h3><ol>
-<li>hostNetwork模式解决容器多层网络转换挺有效的</li>
-<li>traefix的annotations方式的配置很方便，但是要注意后端的配置是需要在service上声明注解的而不是ingress</li>
-<li>支持熔断</li>
-</ol>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/k8s/">k8s</a>
-</div>
+    <time datetime="2019-05-28T14:52:05.000Z" itemprop="datePublished">2019-05-28</time>
+  </a>
+</section>
 
 
-  <div class="article-tags">
+
+
+
+
   
-  <span></span> <a href="/tags/k8s/">k8s</a><a href="/tags/ingress/">ingress</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2019/04/22/Python近期总结1/" title="Python近期总结1" itemprop="url">Python近期总结1</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2019-04-22T13:58:00.000Z" itemprop="datePublished"> Published 2019-04-22</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h3 id="Python近期总结1"><a href="#Python近期总结1" class="headerlink" title="Python近期总结1"></a><strong>Python近期总结1</strong></h3><p>总结记录一下python装饰器和单例的实现</p>
-<h5 id="一、装饰器模式"><a href="#一、装饰器模式" class="headerlink" title="一、装饰器模式"></a><strong>一、装饰器模式</strong></h5><p>装饰器由闭包实现，闭包概念如下：</p>
-<ul>
-<li>绑定外部作用域的变量的函数</li>
-<li>即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁</li>
-<li>每次运行外部函数都会重新创建闭包</li>
-</ul>
-<p>实现一个记录函数运行时间的装饰器：</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">log_time</span><span class="params">(func)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">log</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">		begin = time.time()</span><br><span class="line">		res = func(*args, **kwargs)</span><br><span class="line">		end = time.time() - begin</span><br><span class="line">		print(end)</span><br><span class="line">		<span class="keyword">return</span> res</span><br><span class="line">	<span class="keyword">return</span> log</span><br></pre></td></tr></table></figure>
-<p>类方法实现的带参数的装饰器</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">LogTime</span><span class="params">(object)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, use_int=False)</span>:</span></span><br><span class="line">		self.use_int = use_int</span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__call__</span><span class="params">(self, func)</span></span></span><br><span class="line"><span class="function">		<span class="title">def</span> <span class="title">log</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">            begin = time.time()</span><br><span class="line">            res = func(*args, **kwargs)</span><br><span class="line">            <span class="keyword">if</span> self.use_int:</span><br><span class="line">            	end = int(time.time() - begin)</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">            	end = time.time() - begin</span><br><span class="line">            print(end)</span><br><span class="line">            <span class="keyword">return</span> res</span><br><span class="line">		<span class="keyword">return</span> log</span><br><span class="line">    </span><br><span class="line"><span class="meta">@LogTime(True)</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">test</span><span class="params">()</span>:</span></span><br><span class="line">    time.sleep(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">test()</span><br></pre></td></tr></table></figure>
-<p>上述代码会打印1，而不是一个浮点数1.010类似的数据，<strong>call</strong>是python类中的特殊方法，当使用<strong>类()</strong>会自动执行类下的<strong>call</strong>方法，@只是python的一个语法糖，实际上是这样调用的</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">test = LogTime().__call__(test)</span><br><span class="line">test()</span><br></pre></td></tr></table></figure>
-<h5 id="二、单例模式"><a href="#二、单例模式" class="headerlink" title="二、单例模式"></a><strong>二、单例模式</strong></h5><p>使用new方法创建单例，比使用classmethod创建单例更简洁，并且不会出现不支持多线程创建单例，直接上代码</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Single</span><span class="params">(object)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__new__</span><span class="params">(cls)</span>:</span></span><br><span class="line">		<span class="keyword">if</span> <span class="keyword">not</span> hasattr(cls, <span class="string">"_instance"</span>):</span><br><span class="line">			cls._instance = super().__new__(cls)</span><br><span class="line">		<span class="keyword">return</span> cls._instance</span><br></pre></td></tr></table></figure>
-<p>一般我们认为<strong>init</strong>方法是创建实例并初始化的方法，实际上应该分为两步：</p>
-<ol>
-<li><strong>new</strong>方法负责创建实例</li>
-<li><strong>init</strong>方法负责初始化实例的一些属性</li>
-</ol>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/python进阶/">python进阶</a>
-</div>
-
-
-  <div class="article-tags">
+<section class="post" itemscope itemprop="blogitem">
   
-  <span></span> <a href="/tags/python/">python</a><a href="/tags/设计模式/">设计模式</a><a href="/tags/装饰器/">装饰器</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2018/04/18/centos7设置ipv6/" title="centos7设置ipv6" itemprop="url">centos7设置ipv6</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2018-04-17T16:23:17.000Z" itemprop="datePublished"> Published 2018-04-18</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a><strong>前言</strong></h3><p>最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。</p>
-<p>​    </p>
-<h3 id="环境准备"><a href="#环境准备" class="headerlink" title="环境准备"></a><strong>环境准备</strong></h3><p>1台阿里云主机、centos7系统、专有网络</p>
-<p>​    ​</p>
-<h3 id="环境搭建"><a href="#环境搭建" class="headerlink" title="环境搭建"></a><strong>环境搭建</strong></h3><h5 id="1、系统内核支持ipv6"><a href="#1、系统内核支持ipv6" class="headerlink" title="1、系统内核支持ipv6"></a><strong>1、系统内核支持ipv6</strong></h5><p>由于阿里云主机默认是关闭ipv6的，所以需要将ipv6相关的选项放开，编辑/etc/sysctl.conf文件</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">net.ipv6.conf.all.disable_ipv6 =0</span><br><span class="line">net.ipv6.conf.default.disable_ipv6 =0</span><br><span class="line">net.ipv6.conf.lo.disable_ipv6 = 0</span><br></pre></td></tr></table></figure>
-<p>将如上三项改成为0(原本为1)</p>
-<p>​    </p>
-<p>​    </p>
-<h5 id="2、申请ipv6地址"><a href="#2、申请ipv6地址" class="headerlink" title="2、申请ipv6地址"></a><strong>2、申请ipv6地址</strong></h5><p>推荐去这个网站<a href="">tunnelbroker.net</a>，有推荐设置什么的，很方便</p>
-<p>申请好之后如下：</p>
-<p><img src="/img/ipv6_apply.png" style="display:block;margin:auto"></p>
-<p>设置ipv6永久生效，将其放在/etc/sysconfig/network-scripts/下</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ONBOOT=yes</span><br><span class="line">DEVICE=sit</span><br><span class="line">BOOTPROTO=none</span><br><span class="line">IPV6INIT=yes</span><br><span class="line">IPV6TUNNELIPV4=66.220.18.42		   #tunnel serverip	</span><br><span class="line">IPV6TUNNELIPV4LOCAL=172.19.155.53  #替换成自己的内网ip</span><br><span class="line">IPV6ADDR=2001:470:c:13bb::2/64	   #ipv6地址</span><br><span class="line">IPV6_DEFAULTGW=2001:470:c:13bb::1	#默认网关</span><br></pre></td></tr></table></figure>
-<p>在/etc/resolv.conf中加入dns域名解析</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nameserver 74.82.42.42</span><br><span class="line">nameserver 2001:470:20::2</span><br></pre></td></tr></table></figure>
-<p>​    </p>
-<p>​    </p>
-<h5 id="3、web服务支持ipv6"><a href="#3、web服务支持ipv6" class="headerlink" title="3、web服务支持ipv6"></a><strong>3、web服务支持ipv6</strong></h5><p>查看nginx是否支持ipv6</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[root@izuf60ecjd7aq306bwuc13z sbin]# ./nginx -V</span><br><span class="line">nginx version: nginx/1.2.4</span><br><span class="line">built by gcc 4.8.5 20150623 (Red Hat 4.8.5-11) (GCC) </span><br><span class="line">TLS SNI support enabled</span><br><span class="line">configure arguments: --prefix=/usr/local/nginx --with-ipv6 --with-http_gzip_static_module --with-http_ssl_module --with-http_stub_status_module --add-module=../nginx-sticky-module-1.1/ --add-module=../nginx_upstream_check_module/ --add-module=../chunkin-nginx-module-0.23/ --with-pcre=../pcre-8.21</span><br></pre></td></tr></table></figure>
-<p>如果不支持，需要重新编译nginx，加上–with-ipv6。</p>
-<p>修改nginx配置文件，监听ipv6的80端口</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">listen       [::]:80 ipv6only=on;</span><br></pre></td></tr></table></figure>
-<p>至此，ipv6网站基本完成。设置ipv6的域名解析就不多说了。</p>
-<p>最后，去 <a href="">http://ipv6-test.com/validate.php</a>上验证一下</p>
-<p><img src="/img/ipv6_validate.png" style="display:block;margin:auto"></p>
-<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a><strong>总结</strong></h3><p>学习一下，留给以后上架苹果store app用。</p>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/运维/">运维</a>
-</div>
-
-
-  <div class="article-tags">
+    <a href="/2019/05/26/分布式锁实现/" title="分布式锁实现" itemprop="url">
   
-  <span></span> <a href="/tags/ipv6/">ipv6</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
+    <h1 itemprop="name">分布式锁实现</h1>
     
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
+     
+           <p itemprop="description" >分布式锁实现一、前言分布式锁一般有如下几种实现方式，本文主要探讨redis和etcd的实现方式。
+
+基于redis分分布式锁
+数据库乐观锁
+基于etcd的分布式锁
+基于zookeeper的分布式锁
+
+二、分布式锁的四要素
+互斥性：在任意时刻，只有一个客户端能持有锁
+不会发生死锁：</p>
+        
     
-      <a href="/2018/04/15/python字符编码/" title="python字符编码" itemprop="url">python字符编码</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2018-04-15T04:01:31.000Z" itemprop="datePublished"> Published 2018-04-15</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <h2 id="python字符编码"><a href="#python字符编码" class="headerlink" title="python字符编码"></a>python字符编码</h2><p>如果不懂字符编码，将会是程序员一生之痛。    </p>
-<p>​    </p>
-<p>​    </p>
-<h4 id="一、python3的字符编码"><a href="#一、python3的字符编码" class="headerlink" title="一、python3的字符编码"></a><strong>一、python3的字符编码</strong></h4><hr>
-<p>首先明确下面几点:</p>
-<ol>
-<li>python3内存中都是解码过的unicode(万国码)二进制</li>
-<li>硬盘中存的是经过编码的二进制(gbk,ascci等)</li>
-<li>我们看到的字符输出等都是经过应用程序从内存中编码得到的</li>
-<li>控制python以什么编码方式读取代码到内存:  #coding: utf-8(gbk)</li>
-<li>unicode的二进制在内存中怎么都不会乱码  </li>
-</ol>
-<p>​    </p>
-<h4 id="二、编码与解码"><a href="#二、编码与解码" class="headerlink" title="二、编码与解码"></a><strong>二、编码与解码</strong></h4><hr>
-<p><img src="/img/decode_encode.jpg" style="display:block;margin:auto"></p>
-<p>由上图可见，乱码的情况只可能发生在:</p>
-<ol>
-<li><p><strong>读取字符到内存时的解码方式和存取文件时的编码方式不同</strong></p>
-</li>
-<li><p><strong>读取字符到内存时的解码方式和输出时的编码方式不同</strong>  </p>
-<p>​    </p>
-<p>​    </p>
-</li>
-</ol>
-<h4 id="三、python2的字符编码"><a href="#三、python2的字符编码" class="headerlink" title="三、python2的字符编码"></a><strong>三、python2的字符编码</strong></h4><hr>
-<p>python2由于历史遗留问题默认使用的是ascci编码方式，因为1989年python诞生，而unicode是在1994年才正式发布。</p>
-<p>python2与python字符编码的最大区别:</p>
-<ul>
-<li>默认使用ascci编码到内存</li>
-</ul>
-<p>这样就导致了python2内存中无法做到怎么都不会乱码，需要先解码，再编码。  </p>
-<p>​    </p>
-<p>​    </p>
-<h4 id="四、总结"><a href="#四、总结" class="headerlink" title="四、总结"></a><strong>四、总结</strong></h4><hr>
-<ol>
-<li>以什么方式读的，就以什么方式存或者取，可以保证字符不会乱码。</li>
-<li>更加坚定的使用python3。</li>
-</ol>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/python基础/">python基础</a>
-</div>
+    <time datetime="2019-05-25T16:16:06.000Z" itemprop="datePublished">2019-05-26</time>
+  </a>
+</section>
 
 
-  <div class="article-tags">
+
+
+
+
   
-  <span></span> <a href="/tags/python/">python</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-        <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2018/04/10/Lua前言/" title="Lua前言" itemprop="url">Lua前言</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
-		
-  <p class="article-time">
-    <time datetime="2018-04-10T15:52:21.000Z" itemprop="datePublished"> Published 2018-04-10</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-        
-        <p>###Lua前言</p>
-<p>nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。</p>
-
-        
-        
-        <p class="article-more-link">
-          
-       </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/Lua/">Lua</a>
-</div>
-
-
-  <div class="article-tags">
+<section class="post" itemscope itemprop="blogitem">
   
-  <span></span> <a href="/tags/Lua/">Lua</a><a href="/tags/nginx/">nginx</a>
-  </div>
+    <a href="/2019/05/26/Mysql总结/" title="Mysql总结" itemprop="url">
+  
+    <h1 itemprop="name">Mysql总结</h1>
+    
+     
+           <p itemprop="description" >Mysql总结一、 Mysql事务1.1 mysql事务的定义
+事务是数据库并发控制的基本单位
+食物可以看作是一系列SQL语句的集合
+事务要么全部执行成功，要么全部执行失败（回滚）
 
-</div>
+1.2 事务的四个基本特性（ACID）
+原子性（Atomicity）: 一个事务中所有操作全部完</p>
+        
+    
+    <time datetime="2019-05-25T16:02:10.000Z" itemprop="datePublished">2019-05-26</time>
+  </a>
+</section>
 
 
 
 
-<div class="comments-count">
-	
-</div>
-
-</footer>
 
 
-    </article>
+  
+<section class="post" itemscope itemprop="blogitem">
+  
+    <a href="/2019/05/22/Kubernetes中Traefik作为Ingress控制器/" title="Kubernetes中Traefik作为Ingress控制器" itemprop="url">
+  
+    <h1 itemprop="name">Kubernetes中Traefik作为Ingress控制器</h1>
+    
+     
+           <p itemprop="description" >Kubernetes中Traefik作为Ingress控制器简介
+Traefik是一个开源的反向代理工具，在Kubernetes集群内充当Ingress的角色，具有高性能，配置灵活，可根据Kubernetes服务动态配置等优点 。    
+
+一、必备环境
+kubernetes1.</p>
+        
+    
+    <time datetime="2019-05-22T15:12:30.000Z" itemprop="datePublished">2019-05-22</time>
+  </a>
+</section>
+
+
+
+
+
+
+  
+<section class="post" itemscope itemprop="blogitem">
+  
+    <a href="/2019/04/22/Python近期总结1/" title="Python近期总结1" itemprop="url">
+  
+    <h1 itemprop="name">Python近期总结1</h1>
+    
+     
+           <p itemprop="description" >Python近期总结1总结记录一下python装饰器和单例的实现
+一、装饰器模式装饰器由闭包实现，闭包概念如下：
+
+绑定外部作用域的变量的函数
+即使离开外部作用域，如果闭包仍可见，绑定变量不会销毁
+每次运行外部函数都会重新创建闭包
+
+实现一个记录函数运行时间的装饰器：
+12345</p>
+        
+    
+    <time datetime="2019-04-22T13:58:00.000Z" itemprop="datePublished">2019-04-22</time>
+  </a>
+</section>
+
+
+
+
+
+
+  
+<section class="post" itemscope itemprop="blogitem">
+  
+    <a href="/2018/04/18/centos7设置ipv6/" title="centos7设置ipv6" itemprop="url">
+  
+    <h1 itemprop="name">centos7设置ipv6</h1>
+    
+     
+           <p itemprop="description" >前言最近朋友公司app上架apple store遭拒，原因是网站不支持ipv6，国内ipv6并不普及，朋友又不是一位专门的运维人员，于是向我咨询，我之前也没有研究过ipv6，便花了点时间弄了一下，总算捣腾出来了。在此记录一下。
+​    
+环境准备1台阿里云主机、centos7系</p>
+        
+    
+    <time datetime="2018-04-17T16:23:17.000Z" itemprop="datePublished">2018-04-18</time>
+  </a>
+</section>
+
+
+
+
+
+
+  
+<section class="post" itemscope itemprop="blogitem">
+  
+    <a href="/2018/04/15/python字符编码/" title="python字符编码" itemprop="url">
+  
+    <h1 itemprop="name">python字符编码</h1>
+    
+     
+           <p itemprop="description" >python字符编码如果不懂字符编码，将会是程序员一生之痛。    
+​    
+​    
+一、python3的字符编码
+首先明确下面几点:
+
+python3内存中都是解码过的unicode(万国码)二进制
+硬盘中存的是经过编码的二进制(gbk,ascci等)
+我们看到的字符输</p>
+        
+    
+    <time datetime="2018-04-15T04:01:31.000Z" itemprop="datePublished">2018-04-15</time>
+  </a>
+</section>
+
+
+
+
+
+
+  
+<section class="post" itemscope itemprop="blogitem">
+  
+    <a href="/2018/04/10/Lua前言/" title="Lua前言" itemprop="url">
+  
+    <h1 itemprop="name">Lua前言</h1>
+    
+     
+           <p itemprop="description" >###Lua前言
+nginx中，lua的协程机制可以很好的和nginx的全异步、非阻塞的多阶段处理机制结合，使开发者使用同步的模式，开发全异步的应用，而不用考虑异步的处理机制。</p>
+        
+    
+    <time datetime="2018-04-10T15:52:21.000Z" itemprop="datePublished">2018-04-10</time>
+  </a>
+</section>
 
 
 
