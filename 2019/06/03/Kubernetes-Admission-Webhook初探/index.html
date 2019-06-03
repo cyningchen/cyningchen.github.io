@@ -1,0 +1,564 @@
+
+ <!DOCTYPE HTML>
+<html >
+<head>
+  <meta charset="UTF-8">
+  
+    <title>Kubernetes Admission Webhook初探 | CyningChen - 博客</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="CyningChen">
+    
+
+    
+    <meta name="description" content="Kubernetes Admission Webhook初探一、 简介 Admission Controller（准入控制）是Kubernetes API Server用于拦截请求的一种手段。Admission可以做到对请求的资源对象进行校验、修改。service mesh最近很火的项目Istio天生支持Kubernetes，利用的就是admission对服务实例自动注入sidecar。  二、如">
+<meta name="keywords" content="k8s">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes Admission Webhook初探">
+<meta property="og:url" content="http://yoursite.com/2019/06/03/Kubernetes-Admission-Webhook初探/index.html">
+<meta property="og:site_name" content="CyningChen - 博客">
+<meta property="og:description" content="Kubernetes Admission Webhook初探一、 简介 Admission Controller（准入控制）是Kubernetes API Server用于拦截请求的一种手段。Admission可以做到对请求的资源对象进行校验、修改。service mesh最近很火的项目Istio天生支持Kubernetes，利用的就是admission对服务实例自动注入sidecar。  二、如">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-06-03T13:13:44.840Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kubernetes Admission Webhook初探">
+<meta name="twitter:description" content="Kubernetes Admission Webhook初探一、 简介 Admission Controller（准入控制）是Kubernetes API Server用于拦截请求的一种手段。Admission可以做到对请求的资源对象进行校验、修改。service mesh最近很火的项目Istio天生支持Kubernetes，利用的就是admission对服务实例自动注入sidecar。  二、如">
+
+    
+    <link rel="alternative" href="/atom.xml" title="CyningChen - 博客" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/gopher.jpg" alt="CyningChen - 博客" title="CyningChen - 博客"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="CyningChen - 博客">CyningChen - 博客</a></h1>
+				<h2 class="blog-motto"></h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="Menu">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">主页</a></li>
+					
+						<li><a href="/archives">归档</a></li>
+					
+						<li><a href="/about">关于</a></li>
+					
+						<li><a href="/categories">分类</a></li>
+					
+						<li><a href="/tags">标签</a></li>
+					
+					<li>
+ 					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="search" id="search" name="q" autocomplete="off" maxlength="20" placeholder="Search" />
+						<input type="hidden" name="q" value="site:yoursite.com">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2019/06/03/Kubernetes-Admission-Webhook初探/" title="Kubernetes Admission Webhook初探" itemprop="url">Kubernetes Admission Webhook初探</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="CyningChen" target="_blank" itemprop="author">CyningChen</a>
+		
+  <p class="article-time">
+    <time datetime="2019-06-03T13:12:48.000Z" itemprop="datePublished"> Published 2019-06-03</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Kubernetes-Admission-Webhook初探"><span class="toc-number">1.</span> <span class="toc-text">Kubernetes Admission Webhook初探</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、-简介"><span class="toc-number">1.1.</span> <span class="toc-text">一、 简介</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、如何使用Admission-Controller"><span class="toc-number">1.2.</span> <span class="toc-text">二、如何使用Admission Controller</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-admission-controller"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 admission controller</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-webhook-admission"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.1 webhook admission</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、如何自己写一个webhook"><span class="toc-number">1.3.</span> <span class="toc-text">三、如何自己写一个webhook</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、Webhook-ValidatingWebhookConfiguration实战"><span class="toc-number">1.4.</span> <span class="toc-text">四、Webhook ValidatingWebhookConfiguration实战</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#4-1-创建一个webhook-namespace"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 创建一个webhook namespace</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-2-创建证书及secret"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 创建证书及secret</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-3-部署webhook服务端"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 部署webhook服务端</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-4-创建k8s-ValidatingWebhookConfiguration"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 创建k8s ValidatingWebhookConfiguration</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-5-部分代码展示"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 部分代码展示</span></a></li></ol></li></ol></li></ol>
+		
+		</div>
+		
+		<h2 id="Kubernetes-Admission-Webhook初探"><a href="#Kubernetes-Admission-Webhook初探" class="headerlink" title="Kubernetes Admission Webhook初探"></a>Kubernetes Admission Webhook初探</h2><h3 id="一、-简介"><a href="#一、-简介" class="headerlink" title="一、 简介"></a>一、 简介</h3><blockquote>
+<p>Admission Controller（准入控制）是Kubernetes API Server用于拦截请求的一种手段。Admission可以做到对请求的资源对象进行校验、修改。service mesh最近很火的项目Istio天生支持Kubernetes，利用的就是admission对服务实例自动注入sidecar。</p>
+</blockquote>
+<h3 id="二、如何使用Admission-Controller"><a href="#二、如何使用Admission-Controller" class="headerlink" title="二、如何使用Admission Controller"></a>二、如何使用Admission Controller</h3><h4 id="2-1-admission-controller"><a href="#2-1-admission-controller" class="headerlink" title="2.1 admission controller"></a>2.1 admission controller</h4><p>Kubernetes 1.10之前的版本可以使用 <code>--admission-control</code> 打开 Admission Controller。同时 <code>--admission-control</code>的顺序决定 Admission 运行的先后。其实这种方式对于用户来讲其实是挺复杂的，因为这要求用户对所有的 Admission Controllers 需要完全了解。</p>
+<p>如果使用Kubernetes 1.10之后的版本， <code>--admission-control</code> 已经废弃，建议使用 <code>--enable-admission-plugins --disable-admission-plugins</code> 指定需要打开或者关闭的 Admission Controller。 同时用户指定的顺序并不影响实际 Admission Controllers 的执行顺序，对用户来讲非常友好。</p>
+<p>值得一提的是，有些 Admission Controller 可能会使用 Alpha 版本的 API，这时必须首先使能其使用的 API 版本。否则 Admission Controller 不能工作，可能会影响系统功能。</p>
+<h4 id="2-1-webhook-admission"><a href="#2-1-webhook-admission" class="headerlink" title="2.1 webhook admission"></a>2.1 webhook admission</h4><p>目前 Kubernetes 中已经有非常多的 Admission 插件， 但是并不能保证满足所有开发者的需求。 众所周知，Kbernetes 之所以受到推崇，它的可扩展能力功不可没。Admission 也提供了一种 webhook 的扩展机制。</p>
+<ul>
+<li>MutatingAdmissionWebhook：在对象持久化之前进行修改</li>
+<li>ValidatingAdmissionWebhook：在对象持久化之前进行验证</li>
+</ul>
+<p>可能有读者接触过另外一种动态可扩展的机制 <strong>Initializers</strong>，不过至今还是 Apha 特性，社区讨论有可能会把它移除。所以选择动态 Admission 首选 webhook。</p>
+<p><strong>多个Admission Controller会形成一个Admission Chain（链条），修改型的在前面先执行，验证型的在后面后执行，这样验证型的才能去验证修改的对不对。</strong> </p>
+<h3 id="三、如何自己写一个webhook"><a href="#三、如何自己写一个webhook" class="headerlink" title="三、如何自己写一个webhook"></a>三、如何自己写一个webhook</h3><ol>
+<li>创建TLS Certificate，即证书</li>
+<li>编写服务端代码，服务端代码需要使用证书</li>
+<li>根据证书创建k8s secret</li>
+<li>k8s部署服务端Deployment，以及声明一个提供服务的Service</li>
+<li>创建k8s WebhookConfiguration（validate或者mutate），设置caBundle。</li>
+</ol>
+<h3 id="四、Webhook-ValidatingWebhookConfiguration实战"><a href="#四、Webhook-ValidatingWebhookConfiguration实战" class="headerlink" title="四、Webhook ValidatingWebhookConfiguration实战"></a>四、Webhook ValidatingWebhookConfiguration实战</h3><blockquote>
+<p>限制Deployment、Service、Pod必须要有以hadoop开头的label，否则不予放行。其中，忽略kube-system以及kube-public两个namespace的验证。</p>
+</blockquote>
+<h4 id="4-1-创建一个webhook-namespace"><a href="#4-1-创建一个webhook-namespace" class="headerlink" title="4.1 创建一个webhook namespace"></a>4.1 创建一个webhook namespace</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Namespace</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">webhook</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line"><span class="attr">  finalizers:</span></span><br><span class="line"><span class="bullet">    -</span> <span class="string">kubernetes</span></span><br></pre></td></tr></table></figure>
+<h4 id="4-2-创建证书及secret"><a href="#4-2-创建证书及secret" class="headerlink" title="4.2 创建证书及secret"></a>4.2 创建证书及secret</h4><p>这里使用一个脚本生成相关的证书以及secret。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./webhook-create-signed-cert.sh --service webhook-svc --secret webhook-test-secret --namespace webhook</span><br></pre></td></tr></table></figure>
+<p>service对应webhook服务端service的名称，secret名称和最终部署中使用到的一致，namespace为刚创建的。</p>
+<h4 id="4-3-部署webhook服务端"><a href="#4-3-部署webhook服务端" class="headerlink" title="4.3 部署webhook服务端"></a>4.3 部署webhook服务端</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">extensions/v1beta1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Deployment</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  labels:</span></span><br><span class="line"><span class="attr">    app:</span> <span class="string">webhook-test</span></span><br><span class="line"><span class="attr">    webhook:</span> <span class="string">"true"</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">webhook-deploy</span></span><br><span class="line"><span class="attr">  namespace:</span> <span class="string">webhook</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line"><span class="attr">  replicas:</span> <span class="number">1</span></span><br><span class="line"><span class="attr">  selector:</span></span><br><span class="line"><span class="attr">    matchLabels:</span></span><br><span class="line"><span class="attr">      app:</span> <span class="string">webhook-test</span></span><br><span class="line"><span class="attr">      webhook:</span> <span class="string">"true"</span></span><br><span class="line"><span class="attr">  template:</span></span><br><span class="line"><span class="attr">    metadata:</span></span><br><span class="line"><span class="attr">      labels:</span></span><br><span class="line"><span class="attr">        app:</span> <span class="string">webhook-test</span></span><br><span class="line"><span class="attr">        webhook:</span> <span class="string">"true"</span></span><br><span class="line"><span class="attr">    spec:</span></span><br><span class="line"><span class="attr">      containers:</span></span><br><span class="line"><span class="attr">      - args:</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--tls-cert-file=/webhook.local.config/certificates/cert.pem</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--tls-private-key-file=/webhook.local.config/certificates/key.pem</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">--alsologtostderr</span></span><br><span class="line"><span class="bullet">        -</span> <span class="bullet">-v=4</span></span><br><span class="line"><span class="bullet">        -</span> <span class="number">2</span><span class="string">&gt;&amp;1</span></span><br><span class="line"><span class="attr">        image:</span> <span class="string">cyningchen/webhook:2.0</span></span><br><span class="line"><span class="attr">        imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br><span class="line"><span class="attr">        name:</span> <span class="string">webhook-test</span></span><br><span class="line"><span class="attr">        volumeMounts:</span></span><br><span class="line"><span class="attr">        - mountPath:</span> <span class="string">/webhook.local.config/certificates</span></span><br><span class="line"><span class="attr">          name:</span> <span class="string">webhook-certs</span></span><br><span class="line"><span class="attr">          readOnly:</span> <span class="literal">true</span></span><br><span class="line"><span class="attr">      volumes:</span></span><br><span class="line"><span class="attr">      - name:</span> <span class="string">webhook-certs</span></span><br><span class="line"><span class="attr">        secret:</span></span><br><span class="line"><span class="attr">          defaultMode:</span> <span class="number">420</span></span><br><span class="line"><span class="attr">          secretName:</span> <span class="string">webhook-test-secret</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line"><span class="attr">  name:</span> <span class="string">webhook-svc</span></span><br><span class="line"><span class="attr">  namespace:</span> <span class="string">webhook</span></span><br><span class="line"><span class="attr">  labels:</span></span><br><span class="line"><span class="attr">    test:</span> <span class="string">webhook</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line"><span class="attr">  ports:</span></span><br><span class="line"><span class="attr">  - port:</span> <span class="number">443</span></span><br><span class="line"><span class="attr">    targetPort:</span> <span class="number">443</span></span><br><span class="line"><span class="attr">  selector:</span></span><br><span class="line"><span class="attr">    webhook:</span> <span class="string">"true"</span></span><br><span class="line"><span class="attr">  sessionAffinity:</span> <span class="string">None</span></span><br><span class="line"><span class="attr">  type:</span> <span class="string">ClusterIP</span></span><br></pre></td></tr></table></figure>
+<p>这里就是部署了一个webhook apiserver服务端，对外暴露了一个service，必须要注意的是，<strong>webhook这种方式是必须要支持https的</strong>，这里通过secret挂载至容器，然后在容器启动时指定参数使用https的证书。</p>
+<h4 id="4-4-创建k8s-ValidatingWebhookConfiguration"><a href="#4-4-创建k8s-ValidatingWebhookConfiguration" class="headerlink" title="4.4 创建k8s ValidatingWebhookConfiguration"></a>4.4 创建k8s ValidatingWebhookConfiguration</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">apiVersion: admissionregistration.k8s.io/v1beta1</span><br><span class="line">kind: ValidatingWebhookConfiguration</span><br><span class="line">metadata:</span><br><span class="line">  name: validate-webhook-pod</span><br><span class="line">webhooks:</span><br><span class="line">- name: validate-labels.k8s.io</span><br><span class="line">  clientConfig:</span><br><span class="line">    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN5RENDQWJDZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRFNU1EVXdPVEF6TVRrek1Wb1hEVEk1TURVd05qQXpNVGt6TVZvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTmdvCmtZQTRXOWlSMzVHR0piOFVBdlNpVkUzSlptNmduQmVWTmluclJoaHVjbUsreDN4ZHUwZU5xT2ZFQmNsRUh2OW0KZlVxMGRLN1FuSzliWWY2Vm1QZVFCeFNONVUyK2sycUhRNENVdVZnN0NhQUtmWktRZW96NEJFSlpzN3ZMYi9lcAp0cndOTGU2OVE0TW9CUFJKbVJQc2VUZjF2ZWNDVXRKbUNscDhDNXYrdmxya3llUmI3K1dBRTBBQ3dvNHd6eG1JCjNKeitLdkhwVGY1R2c4NngrVDliRDZSZHEzWGZYODhkblMyMUpYbFkxcWRCbnpqU1dtemNHTGtXODVnU2lxa2gKTDBhTkwrZ0lUWUM3L1YxVVliOUswaTNIMWhsbXh5ai9hM21uYUR1Y1N3OGJlZlc2dEtiSVk0azY4NzQwVWxFZworMkY4dXRkYUV0dit1SWw4c1hFQ0F3RUFBYU1qTUNFd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFCWDI4WlZmeHJHa0lSd1c1YlNjZGY0Q0xhYzIKcmIyWXNWQmUyeXozMTlENGpVTkIxeE1qSzJnaEswT2NFWC9GYTB4T0dUR3k5REFVSmV2SFF4ZURyb3BaMEh3ZwpXa1djNFVRcEpmTFhOdjhkeDcvb2hmNm5ZdXAvekhoY0lSSDlFUThrZkhUV1JKYmh0QnF1RTJJOTIwbGc0RERyCmZUelZHY2JPYllKekY4VzZoamRXYk9yT2xBTWtzNExRY3hIZHVWRVlxYUVjR0luWFB1L2t0WDZ6TnltM0pRR2MKcWhpU1FDbzlSSGR4bWtVSnpDa3ZNR05GUnhiMG9CSWU3bkJ2UGF5RkF1NWtWTXdtRWxGNU9aWkQ0dU5oNEJRUQpNUHNyaE5lRkZOUXNwQzNwY3IxT05jOVNCdVFDbENRUElCK0NTdWN2Umw4VEx3d0toUWRWMXZaNHgwZz0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=</span><br><span class="line">    service:</span><br><span class="line">      name: webhook-svc</span><br><span class="line">      namespace: webhook</span><br><span class="line">      path: &quot;/validate&quot;</span><br><span class="line">  namespaceSelector: &#123;&#125;</span><br><span class="line">  rules:</span><br><span class="line">  - apiGroups:</span><br><span class="line">    - &quot;apps&quot;</span><br><span class="line">    - &quot;&quot;</span><br><span class="line">    apiVersions:</span><br><span class="line">    - v1</span><br><span class="line">    operations:</span><br><span class="line">    - CREATE</span><br><span class="line">    resources:</span><br><span class="line">    - pods</span><br><span class="line">    - deployments</span><br><span class="line">    - services</span><br></pre></td></tr></table></figure>
+<p>这个文件里定义了k8s与webhook server通讯的方式（caBundle）以及地址service，namespaceSelector为生效的namespace区域，默认为所有。 rules就是定义了哪些api资源能够进行哪些操作（Create）</p>
+<h4 id="4-5-部分代码展示"><a href="#4-5-部分代码展示" class="headerlink" title="4.5 部分代码展示"></a>4.5 部分代码展示</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">validateLabels</span><span class="params">(vl v1beta1.AdmissionReview)</span> *<span class="title">v1beta1</span>.<span class="title">AdmissionResponse</span></span>&#123;</span><br><span class="line">	<span class="keyword">var</span> (</span><br><span class="line">		availableLabels <span class="keyword">map</span>[<span class="keyword">string</span>]<span class="keyword">string</span></span><br><span class="line">		objectMeta	*metav1.ObjectMeta</span><br><span class="line">		resourceNamespace, resourceName <span class="keyword">string</span></span><br><span class="line">	)</span><br><span class="line">	klog.V(<span class="number">2</span>).Info(<span class="string">"validating labels"</span>)</span><br><span class="line">	req := vl.Request</span><br><span class="line">	<span class="keyword">switch</span> req.Kind.Kind &#123;</span><br><span class="line">	<span class="keyword">case</span> <span class="string">"Deployment"</span>:</span><br><span class="line">		<span class="keyword">var</span> deploy v1.Deployment</span><br><span class="line">		deserializer := codecs.UniversalDeserializer()</span><br><span class="line">		<span class="keyword">if</span> _, _, err := deserializer.Decode(req.Object.Raw, <span class="literal">nil</span>, &amp;deploy); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			klog.Error(err)</span><br><span class="line">			<span class="keyword">return</span> toAdmissionResponse(err)</span><br><span class="line">		&#125;</span><br><span class="line">		resourceName, resourceNamespace, objectMeta = deploy.Name, deploy.Namespace, &amp;deploy.ObjectMeta</span><br><span class="line">		availableLabels = deploy.Labels</span><br><span class="line">	<span class="keyword">case</span> <span class="string">"Service"</span>:</span><br><span class="line">		<span class="keyword">var</span> service v12.Service</span><br><span class="line">		deserializer := codecs.UniversalDeserializer()</span><br><span class="line">		<span class="keyword">if</span> _, _, err := deserializer.Decode(req.Object.Raw, <span class="literal">nil</span>, &amp;service); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			klog.Error(err)</span><br><span class="line">			<span class="keyword">return</span> toAdmissionResponse(err)</span><br><span class="line">		&#125;</span><br><span class="line">		resourceName, resourceNamespace, objectMeta = service.Name, service.Namespace, &amp;service.ObjectMeta</span><br><span class="line">		availableLabels = service.Labels</span><br><span class="line">	<span class="keyword">case</span> <span class="string">"Pod"</span>:</span><br><span class="line">		<span class="keyword">var</span> pod v12.Pod</span><br><span class="line">		deserializer := codecs.UniversalDeserializer()</span><br><span class="line">		<span class="keyword">if</span> _, _, err := deserializer.Decode(req.Object.Raw, <span class="literal">nil</span>, &amp;pod); err != <span class="literal">nil</span> &#123;</span><br><span class="line">			klog.Error(err)</span><br><span class="line">			<span class="keyword">return</span> toAdmissionResponse(err)</span><br><span class="line">		&#125;</span><br><span class="line">		resourceName, resourceNamespace, objectMeta = pod.Name, pod.Namespace, &amp;pod.ObjectMeta</span><br><span class="line">		availableLabels = pod.Labels</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> !validationRequired(ignoredNamespaces, objectMeta) &#123;</span><br><span class="line">		klog.V(<span class="number">2</span>).Info(<span class="string">"Skipping validation for %s/%s due to policy check"</span>, resourceNamespace, resourceName)</span><br><span class="line">		<span class="keyword">return</span> &amp;v1beta1.AdmissionResponse&#123;</span><br><span class="line">			Allowed: <span class="literal">true</span>,</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	allowed := <span class="literal">false</span></span><br><span class="line">    <span class="comment">// 检查是否有已hadoop开头的标签</span></span><br><span class="line">	<span class="keyword">for</span> k := <span class="keyword">range</span> availableLabels&#123;</span><br><span class="line">		<span class="keyword">if</span> strings.HasPrefix(k, IgnorePrefix)&#123;</span><br><span class="line">			allowed = <span class="literal">true</span></span><br><span class="line">			<span class="keyword">break</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>  &amp;v1beta1.AdmissionResponse&#123;</span><br><span class="line">		Allowed: allowed,</span><br><span class="line">		Result: &amp;metav1.Status&#123;Message: strings.TrimSpace(<span class="string">"required label are not set"</span>)&#125;,</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>代码及工程都在 <a href="https://github.com/cyningchen/k8s-webhook" target="_blank" rel="noopener">此项目</a>，如有不合理之处，欢迎指正。</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/k8s/">k8s</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/k8s/">k8s</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="http://yoursite.com/2019/06/03/Kubernetes-Admission-Webhook初探/" data-title="Kubernetes Admission Webhook初探 | CyningChen - 博客" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2019/05/28/浅谈Docker容器隔离与限制/"  title="浅谈Docker容器隔离与限制">
+ <strong>下一篇：</strong><br/> 
+ <span>浅谈Docker容器隔离与限制
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="Show Sidebar"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">Contents</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Kubernetes-Admission-Webhook初探"><span class="toc-number">1.</span> <span class="toc-text">Kubernetes Admission Webhook初探</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#一、-简介"><span class="toc-number">1.1.</span> <span class="toc-text">一、 简介</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#二、如何使用Admission-Controller"><span class="toc-number">1.2.</span> <span class="toc-text">二、如何使用Admission Controller</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-admission-controller"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 admission controller</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-webhook-admission"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.1 webhook admission</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#三、如何自己写一个webhook"><span class="toc-number">1.3.</span> <span class="toc-text">三、如何自己写一个webhook</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#四、Webhook-ValidatingWebhookConfiguration实战"><span class="toc-number">1.4.</span> <span class="toc-text">四、Webhook ValidatingWebhookConfiguration实战</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#4-1-创建一个webhook-namespace"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 创建一个webhook namespace</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-2-创建证书及secret"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 创建证书及secret</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-3-部署webhook服务端"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 部署webhook服务端</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-4-创建k8s-ValidatingWebhookConfiguration"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 创建k8s ValidatingWebhookConfiguration</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-5-部分代码展示"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 部分代码展示</span></a></li></ol></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="Hide Sidebar"></a></div>
+<aside class="clearfix">
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/Lua/" title="Lua">Lua<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/docker/" title="docker">docker<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/k8s/" title="k8s">k8s<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/python基础/" title="python基础">python基础<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/python进阶/" title="python进阶">python进阶<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/分布式/" title="分布式">分布式<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/运维/" title="运维">运维<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/python/" title="python">python<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/k8s/" title="k8s">k8s<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/ingress/" title="ingress">ingress<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/设计模式/" title="设计模式">设计模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/装饰器/" title="装饰器">装饰器<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Lua/" title="Lua">Lua<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/nginx/" title="nginx">nginx<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/ipv6/" title="ipv6">ipv6<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/mysql/" title="mysql">mysql<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/分布式锁/" title="分布式锁">分布式锁<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/redis/" title="redis">redis<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/etcd/" title="etcd">etcd<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/docker/" title="docker">docker<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://www.github.com/cyningchen" target="_blank" title="我的github">我的github</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<section class="info">
+		<p> 人与人间的区别就在于是否能坚持. <br/>
+			</p>
+	</section>
+	 
+	<div class="social-font" class="clearfix">
+		
+		
+		<a href="https://github.com/cyningchen" target="_blank" class="icon-github" title="github"></a>
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		<a href="mailto:17621906833@163.com" target="_blank" class="icon-email" title="Email Me"></a>
+		
+	</div>
+			
+		
+
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2019 
+		
+		<a href="/about" target="_blank" title="CyningChen">CyningChen</a>
+		
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="Back to Top"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
